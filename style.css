@@ -577,7 +577,7 @@ input:checked+.slider.round::before {
 }
 
 input[type="range"] {
-    -webkit-appearance: none;
+    /* -webkit-appearance: none; */
     width: 100%;
     background: transparent;
     cursor: pointer;
