@@ -1,6 +1,6 @@
 // ==========================================
 // script.js — Native True Bypass DSP Engine
-// Fixed: CORS Blob Playback, Pitch Bypass, Clearity+ Distortion
+// Fixed: Playback issues, Aggressive Assets Scraper, Swipe Gestures, Download Progress Border
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     const $ = id => document.getElementById(id);
@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const views = { 'songs-view': $('songs-view'), 'effects-panel': $('effects-panel') };
     const songListContainer = $('song-list');
     const emptyState = $('empty-state');
+    const searchBar = $('search-bar');
     const nowPlayingTitle = $('now-playing-title');
     const progressBar = $('progress-bar');
     const currentTimeEl = $('current-time');
@@ -26,6 +27,63 @@ document.addEventListener('DOMContentLoaded', () => {
     let shuffleMode = false;
     let repeatMode = 'off';
 
+    // ── MATERIAL YOU COLOR INFRASTRUCTURE ──
+    const colorPalette = [
+        '#6BA661', '#601515', '#A67A19', '#949494', '#325788',
+        '#BEB5AB', '#CB1E1E', '#34806D', '#333333', '#57612C'
+    ];
+
+    function hexToRgbGlow(hex) {
+        let c = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return c ? `rgba(${parseInt(c[1], 16)}, ${parseInt(c[2], 16)}, ${parseInt(c[3], 16)}, 0.18)` : 'rgba(0,0,0,0.1)';
+    }
+
+    function applyAccentColor(hex) {
+        document.documentElement.style.setProperty('--accent', hex);
+        document.documentElement.style.setProperty('--accent-glow', hexToRgbGlow(hex));
+        localStorage.setItem('theme-accent', hex);
+        
+        document.querySelectorAll('.color-dot').forEach(dot => {
+            dot.classList.toggle('active-accent', dot.dataset.color === hex);
+        });
+    }
+
+    function buildAccentSettingsUI() {
+        const drawerBody = document.querySelector('.drawer-body');
+        const section = document.createElement('div');
+        section.className = 'drawer-section';
+        section.style.flexDirection = 'column';
+        section.style.alignItems = 'flex-start';
+        section.style.gap = '12px';
+        section.style.marginTop = '8px';
+        
+        const label = document.createElement('label');
+        label.className = 'drawer-label';
+        label.textContent = 'Accent Color';
+        
+        const grid = document.createElement('div');
+        grid.className = 'palette-grid';
+        
+        colorPalette.forEach(hex => {
+            const dot = document.createElement('div');
+            dot.className = 'color-dot';
+            dot.style.backgroundColor = hex;
+            dot.dataset.color = hex;
+            dot.onclick = () => applyAccentColor(hex);
+            grid.appendChild(dot);
+        });
+        
+        section.appendChild(label);
+        section.appendChild(grid);
+        drawerBody.appendChild(section);
+    }
+
+    buildAccentSettingsUI();
+
+    // Default Fallback Swapped to #6BA661
+    const savedAccent = localStorage.getItem('theme-accent') || '#6BA661';
+    applyAccentColor(savedAccent);
+
     // Theme Routing
     const currentTheme = localStorage.getItem('theme') || 'light';
     body.className = currentTheme + '-theme';
@@ -35,6 +93,42 @@ document.addEventListener('DOMContentLoaded', () => {
         body.className = t + '-theme';
         localStorage.setItem('theme', t);
     });
+
+    // ── SWIPE GESTURES FOR MOBILE NAVIGATION ──
+    let touchStartX = 0;
+    let touchStartY = 0;
+    document.addEventListener('touchstart', e => {
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    document.addEventListener('touchend', e => {
+        let touchEndX = e.changedTouches[0].screenX;
+        let touchEndY = e.changedTouches[0].screenY;
+        let diffX = touchEndX - touchStartX;
+        let diffY = touchEndY - touchStartY;
+
+        // Ensure it's a horizontal swipe, not vertical scrolling
+        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
+            const isDrawerOpen = $('drawer').classList.contains('open');
+            const activeTab = document.querySelector('.tabs button.active').dataset.view;
+
+            if (diffX > 0) { // Swiped Right
+                if (isDrawerOpen) return;
+                if (activeTab === 'effects-panel') {
+                    document.querySelector('.tabs button[data-view="songs-view"]').click();
+                } else if (activeTab === 'songs-view') {
+                    $('btn-menu').click(); // Open Menu
+                }
+            } else { // Swiped Left
+                if (isDrawerOpen) {
+                    $('btn-close-drawer').click(); // Close Menu
+                } else if (activeTab === 'songs-view') {
+                    document.querySelector('.tabs button[data-view="effects-panel"]').click();
+                }
+            }
+        }
+    }, { passive: true });
 
     // Sidebar Layout Controls
     $('btn-menu').onclick = () => { $('drawer').classList.add('open'); $('drawer-overlay').classList.remove('hidden'); };
@@ -58,13 +152,20 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
+    // Search Filtering
+    $('search-input').oninput = e => {
+        const q = e.target.value.toLowerCase();
+        document.querySelectorAll('.song-item').forEach(item => {
+            item.style.display = item.innerText.toLowerCase().includes(q) ? 'flex' : 'none';
+        });
+    };
+
     // ── NATIVE AUDIO ENGINE GRAPH ASSEMBLY ──
     const audio = new Audio();
-    audio.preservesPitch = true; // Decouples tempo processing out-of-the-box
+    audio.preservesPitch = true;
     
     let audioCtx, sourceNode, analyserNode;
     
-    // Pure Hardware Signal Bypass Config
     const fx = {
         clarity: false, eq: false, vocal: false, comp: false, limit: false, 
         echo: false, flanger: false, reverb: false, mono: false, invert: false
@@ -72,8 +173,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let nodes = {}; 
 
-    function initAudioContext() {
-        if (audioCtx) return;
+    async function initAudioContext() {
+        if (audioCtx) {
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+            return;
+        }
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         sourceNode = audioCtx.createMediaElementSource(audio);
         analyserNode = audioCtx.createAnalyser();
@@ -85,41 +189,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function buildEffectNodes(ctx) {
-        // --- 0. Master Headroom (Prevents 0dBFS Digital Clipping globally) ---
         nodes.masterGain = ctx.createGain();
-        nodes.masterGain.gain.value = 0.95; // -0.5dB headroom
+        nodes.masterGain.gain.value = 0.95; 
 
-        // --- 1. Clearity+ (Surgical Non-Distorting Chain) ---
-        // Cuts bass mud, boosts air, and compresses to glue. No distortion possible.
+        // 1. Clearity+ 
         nodes.clrMudCut = ctx.createBiquadFilter();
         nodes.clrMudCut.type = 'peaking'; nodes.clrMudCut.frequency.value = 250; nodes.clrMudCut.Q.value = 0.8; nodes.clrMudCut.gain.value = -2.5;
-        
         nodes.clrAirBoost = ctx.createBiquadFilter();
         nodes.clrAirBoost.type = 'highshelf'; nodes.clrAirBoost.frequency.value = 8000; nodes.clrAirBoost.gain.value = 3.5;
-        
         nodes.clrComp = ctx.createDynamicsCompressor();
-        nodes.clrComp.threshold.value = -10; nodes.clrComp.ratio.value = 2.5; 
-        nodes.clrComp.attack.value = 0.01; nodes.clrComp.release.value = 0.1;
+        nodes.clrComp.threshold.value = -10; nodes.clrComp.ratio.value = 2.5; nodes.clrComp.attack.value = 0.01; nodes.clrComp.release.value = 0.1;
+        nodes.clrMudCut.connect(nodes.clrAirBoost); nodes.clrAirBoost.connect(nodes.clrComp);
 
-        nodes.clrMudCut.connect(nodes.clrAirBoost);
-        nodes.clrAirBoost.connect(nodes.clrComp);
-
-        // --- 2. Independent Pitch Shift Processor ---
+        // 2. Pitch Shift
         nodes.pitchIn = ctx.createGain(); nodes.pitchOut = ctx.createGain();
         nodes.pitchDelay1 = ctx.createDelay(1.0); nodes.pitchDelay2 = ctx.createDelay(1.0);
-        nodes.pitchDelay1.delayTime.value = 0.1; nodes.pitchDelay2.delayTime.value = 0.1; // Base buffer
+        nodes.pitchDelay1.delayTime.value = 0.1; nodes.pitchDelay2.delayTime.value = 0.1; 
         nodes.pitchGain1 = ctx.createGain(); nodes.pitchGain2 = ctx.createGain();
-        
         nodes.pitchModLfo = ctx.createOscillator(); nodes.pitchModLfo.type = 'sawtooth'; nodes.pitchModLfo.frequency.value = 4.5;
         nodes.pitchModGain = ctx.createGain(); nodes.pitchModGain.gain.value = 0.0;
-
-        nodes.pitchModLfo.connect(nodes.pitchModGain);
-        nodes.pitchModGain.connect(nodes.pitchDelay1.delayTime);
+        nodes.pitchModLfo.connect(nodes.pitchModGain); nodes.pitchModGain.connect(nodes.pitchDelay1.delayTime);
         nodes.pitchIn.connect(nodes.pitchDelay1); nodes.pitchDelay1.connect(nodes.pitchGain1); nodes.pitchGain1.connect(nodes.pitchOut);
         nodes.pitchIn.connect(nodes.pitchDelay2); nodes.pitchDelay2.connect(nodes.pitchGain2); nodes.pitchGain2.connect(nodes.pitchOut);
         nodes.pitchModLfo.start();
 
-        // --- 3. Equalizer Filters ---
+        // 3. EQ
         nodes.eq = [ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter()];
         nodes.eq[0].type = 'lowshelf'; nodes.eq[0].frequency.value = 100;
         nodes.eq[1].type = 'peaking';  nodes.eq[1].frequency.value = 500;  nodes.eq[1].Q.value = 1.0;
@@ -127,16 +221,15 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.eq[3].type = 'highshelf';nodes.eq[3].frequency.value = 8000;
         nodes.eq[0].connect(nodes.eq[1]); nodes.eq[1].connect(nodes.eq[2]); nodes.eq[2].connect(nodes.eq[3]);
 
-        // --- 4. Studio Compression Unit ---
-        nodes.comp = ctx.createDynamicsCompressor();
-        updateCompParams();
+        // 4. Compressor
+        nodes.comp = ctx.createDynamicsCompressor(); updateCompParams();
         
-        // --- 5. Studio Wall Brick Limiter ---
+        // 5. Limiter
         nodes.limit = ctx.createDynamicsCompressor();
         nodes.limit.ratio.value = 20; nodes.limit.attack.value = 0.001; nodes.limit.knee.value = 0;
         updateLimiterParams();
 
-        // --- 6. Feedback Echo Module ---
+        // 6. Echo
         nodes.echoIn = ctx.createGain(); nodes.echoOut = ctx.createGain();
         nodes.echoDry = ctx.createGain(); nodes.echoWet = ctx.createGain();
         nodes.echoDelay = ctx.createDelay(2.0); nodes.echoFb = ctx.createGain(); 
@@ -145,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.echoDelay.connect(nodes.echoWet); nodes.echoDry.connect(nodes.echoOut); nodes.echoWet.connect(nodes.echoOut);
         updateEchoParams();
 
-        // --- 7. Flanger Sweep Engine ---
+        // 7. Flanger
         nodes.flangIn = ctx.createGain(); nodes.flangOut = ctx.createGain();
         nodes.flangDelay = ctx.createDelay(1.0); nodes.flangFb = ctx.createGain(); 
         nodes.flangLfo = ctx.createOscillator(); nodes.flangLfo.type = 'sine'; nodes.flangLfoGain = ctx.createGain(); 
@@ -154,19 +247,19 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.flangDelay.connect(nodes.flangFb); nodes.flangFb.connect(nodes.flangDelay); nodes.flangDelay.connect(nodes.flangOut);
         updateFlangerParams();
 
-        // --- 8. Structural Downmixers ---
+        // 8. Mon/Inv
         nodes.mono = ctx.createChannelMerger(1);
         nodes.invSplit = ctx.createChannelSplitter(2); nodes.invMerge = ctx.createChannelMerger(2);
         nodes.invSplit.connect(nodes.invMerge, 0, 1); nodes.invSplit.connect(nodes.invMerge, 1, 0);
 
-        // --- 9. Phase Cancellation Vocal Reducer ---
+        // 9. Vocal Reducer
         nodes.vocSplit = ctx.createChannelSplitter(2); nodes.vocMerge = ctx.createChannelMerger(2);
         nodes.vocInvert = ctx.createGain(); nodes.vocInvert.gain.value = -1;
         nodes.vocSplit.connect(nodes.vocMerge, 0, 0); nodes.vocSplit.connect(nodes.vocMerge, 0, 1);
         nodes.vocSplit.connect(nodes.vocInvert, 1);
         nodes.vocInvert.connect(nodes.vocMerge, 0, 0); nodes.vocInvert.connect(nodes.vocMerge, 0, 1);
 
-        // --- 10. Convolution Stereo Reverb Array ---
+        // 10. Reverb
         nodes.revIn = ctx.createGain(); nodes.revOut = ctx.createGain();
         nodes.revDry = ctx.createGain(); nodes.revWet = ctx.createGain();
         nodes.revPreDelay = ctx.createDelay(1.0); nodes.revConvolver = ctx.createConvolver();
@@ -180,7 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateReverbParams();
     }
 
-    // ── STRICT HARDWARE ROUTING GRAPH (TRUE BIT-PERFECT BYPASS) ──
     function routeAudio() {
         if(!audioCtx) return;
         sourceNode.disconnect();
@@ -198,7 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let curr = sourceNode;
 
-        // ONLY route through Pitch if it is actively altered (Fixes hidden delay phase distortion)
         const pitchVal = parseFloat($('sl-pitch').value);
         if (pitchVal !== 0) {
             curr.connect(nodes.pitchIn);
@@ -255,7 +346,6 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.revConvolver.buffer = await offCtx.startRendering();
     }
 
-    // Configuration Synchronization
     function updatePitchShift() {
         if(!audioCtx) return;
         const semitones = parseFloat($('sl-pitch').value);
@@ -299,7 +389,6 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.flangFb.gain.value = parseFloat($('sl-flang-fb').value) / 100;
     }
 
-    // Toggle Automation Setup
     const toggleMap = {
         'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp', 'tgl-limit': 'limit', 
         'tgl-echo': 'echo', 'tgl-flanger': 'flanger', 'tgl-reverb': 'reverb', 'tgl-mono': 'mono', 'tgl-invert': 'invert'
@@ -308,15 +397,12 @@ document.addEventListener('DOMContentLoaded', () => {
         $(id).onchange = e => { fx[toggleMap[id]] = e.target.checked; routeAudio(); };
     });
 
-    // ── MATERIAL RESET LOGIC MAPPINGS ──
     $('res-speed').onclick = () => {
         $('sl-tempo').value = 1.0; audio.playbackRate = 1.0; $('val-tempo').textContent = '1.00x';
         $('sl-pitch').value = 0; updatePitchShift(); $('val-pitch').textContent = '0.0';
-        routeAudio(); // Ensure Pitch is disconnected structurally
+        routeAudio(); 
     };
-    $('res-clarity').onclick = () => {
-        $('tgl-clarity').checked = false; fx.clarity = false; routeAudio();
-    };
+    $('res-clarity').onclick = () => { $('tgl-clarity').checked = false; fx.clarity = false; routeAudio(); };
     $('res-eq').onclick = () => {
         $('tgl-eq').checked = false; fx.eq = false; $('eq-preset').value = 'flat';
         ['low','lmid','hmid','high'].forEach((b, i) => {
@@ -364,7 +450,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateReverbParams(); generateReverbIR(); routeAudio();
     };
 
-    // Equalizer Preset Mappings
     const eqPresets = { 'flat': [0, 0, 0, 0], 'bass': [6, 2, 0, 0], 'acoustic': [-2, 2, 4, 3] };
     $('eq-preset').onchange = (e) => {
         if(e.target.value === 'custom') return;
@@ -383,7 +468,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-    // Slider Binders
     const bindSlider = (id, valId, suffix, updater, isIR = false) => {
         let timer;
         $(id).oninput = e => {
@@ -394,7 +478,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     bindSlider('sl-tempo', 'val-tempo', 'x', () => { audio.playbackRate = parseFloat($('sl-tempo').value); $('val-tempo').textContent = parseFloat($('sl-tempo').value).toFixed(2)+'x'; });
-    bindSlider('sl-pitch', 'val-pitch', '', () => { updatePitchShift(); routeAudio(); }); // Ensure routing update on change
+    bindSlider('sl-pitch', 'val-pitch', '', () => { updatePitchShift(); routeAudio(); });
     bindSlider('sl-comp-thresh', 'val-comp-thresh', ' dB', updateCompParams);
     bindSlider('sl-comp-ratio', 'val-comp-ratio', ':1', updateCompParams);
     bindSlider('sl-comp-att', 'val-comp-att', ' ms', updateCompParams);
@@ -414,12 +498,42 @@ document.addEventListener('DOMContentLoaded', () => {
     bindSlider('sl-rev-pre', 'val-rev-pre', ' ms', updateReverbParams);
     bindSlider('sl-rev-low', 'val-rev-low', ' Hz', updateReverbParams);
 
-    // ── AUTOMATED SEED ASSETS LIBRARY INJECTION ──
-    function loadDefaultAssets() {
+    // ── AGGRESSIVE ASSETS SCRAPER (For Local Servers) ──
+    async function loadDefaultAssets() {
+        try {
+            const response = await fetch('assets/');
+            if (response.ok) {
+                const text = await response.text();
+                // Aggressive regex to catch any valid audio link in the directory listing
+                const matches = text.match(/href="([^"]+\.(mp3|wav|ogg|m4a|flac))"/gi);
+                
+                if (matches && matches.length > 0) {
+                    let audioFiles = matches.map(m => m.split('"')[1]).map(f => f.split('/').pop());
+                    audioFiles = [...new Set(audioFiles)]; // Distinct
+                    
+                    trackList = audioFiles.map((filename, i) => ({
+                        title: decodeURIComponent(filename.replace(/\.[^/.]+$/, '')), 
+                        artist: 'Assets Directory', 
+                        url: 'assets/' + filename, 
+                        file: null, duration: 0, index: i, element: null 
+                    }));
+                    
+                    searchBar.style.display = 'block';
+                    emptyState.style.display = 'none';
+                    sortAndRenderTracks();
+                    return;
+                }
+            }
+        } catch(e) {
+            console.log("Directory scraping unavailable. Injecting direct defaults.");
+        }
+
+        // Hard fallback if no directory listing enabled on server
         trackList = [
             { title: 'sample-1', artist: 'Assets Directory', url: 'assets/sample-1.mp3', file: null, duration: 0, index: 0, element: null },
             { title: 'sample-2', artist: 'Assets Directory', url: 'assets/sample-2.mp3', file: null, duration: 0, index: 1, element: null }
         ];
+        searchBar.style.display = 'block';
         emptyState.style.display = 'none';
         sortAndRenderTracks();
     }
@@ -436,6 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
             url: URL.createObjectURL(file), file: file, duration: 0, index: i, element: null
         }));
         
+        searchBar.style.display = 'block';
         emptyState.style.display = 'none';
         sortAndRenderTracks();
         cancelDrawer();
@@ -456,7 +571,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="song-info"><h3>${escapeHtml(track.title)}</h3><p>${escapeHtml(track.artist)}</p></div>
                 <span class="song-duration">--:--</span>
             `;
-            item.onclick = () => { if (currentTrackIndex === idx) togglePlay(); else playTrack(idx); };
+            
+            // Initialization + Play handled here
+            item.onclick = async () => { 
+                await initAudioContext();
+                if (currentTrackIndex === idx) togglePlay(); 
+                else playTrack(idx); 
+            };
+            
             songListContainer.appendChild(item);
             track.element = item;
 
@@ -472,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function escapeHtml(t) { return t.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]); }
 
     // ── MEDIA PLAYER CONTROL CYCLE ──
-    function playTrack(idx) {
+    async function playTrack(idx) {
         if (idx < 0 || idx >= trackList.length) return;
         currentTrackIndex = idx;
         const t = trackList[idx];
@@ -483,16 +605,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         $('btn-download').disabled = t.file === null;
         
-        initAudioContext();
-        if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-        
-        audio.play().then(() => setPlayState(true)).catch(e => console.log("Playback error or Default asset missing/blocked by browser policy."));
+        await initAudioContext();
+        audio.play().then(() => setPlayState(true)).catch(e => console.log("Playback error or Default asset missing: ", e));
     }
 
-    function togglePlay() {
+    async function togglePlay() {
         if (!audio.src) return trackList.length ? playTrack(0) : null;
-        initAudioContext();
-        if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        await initAudioContext();
         isPlaying ? audio.pause() : audio.play();
         setPlayState(!isPlaying);
     }
@@ -542,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     drawVisualizer();
 
-    // ── HIGH-FIDELITY OFFLINE EXPORT ──
+    // ── HIGH-FIDELITY OFFLINE EXPORT (WITH FAKE CIRCULAR PROGRESS BORDER) ──
     $('btn-download').onclick = async () => {
         if (currentTrackIndex < 0 || !trackList[currentTrackIndex].file) return;
         
@@ -552,7 +671,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const btn = $('btn-download'); btn.disabled = true;
-        btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`;
+        btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>`;
+        
+        // Circular Progress Border Animation via CSS Background
+        btn.style.border = '2px solid transparent';
+        btn.style.backgroundClip = 'padding-box, border-box';
+        
+        let simProgress = 0;
+        let progInterval = setInterval(() => {
+            simProgress += (95 - simProgress) * 0.08;
+            btn.style.backgroundImage = `linear-gradient(var(--bg-app), var(--bg-app)), conic-gradient(var(--accent) ${simProgress}%, transparent 0)`;
+        }, 150);
 
         try {
             const buffer = await trackList[currentTrackIndex].file.arrayBuffer();
@@ -586,6 +715,9 @@ document.addEventListener('DOMContentLoaded', () => {
             src.start(0);
             const rendered = await offCtx.startRendering();
             
+            clearInterval(progInterval);
+            btn.style.backgroundImage = `linear-gradient(var(--bg-app), var(--bg-app)), conic-gradient(var(--accent) 100%, transparent 0)`;
+            
             let nCh = rendered.numberOfChannels, len = rendered.length * nCh * 2 + 44,
                 out = new ArrayBuffer(len), view = new DataView(out), chs = [], offset = 0, pos = 0;
             const set16 = d => { view.setUint16(pos, d, true); pos += 2; }; const set32 = d => { view.setUint32(pos, d, true); pos += 4; };
@@ -605,9 +737,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out], {type: "audio/wav"}));
             a.download = `Processed_${trackList[currentTrackIndex].title}.wav`; a.click();
             tempCtx.close();
-        } catch(e) { console.error(e); alert('Export failed'); }
+        } catch(e) { 
+            console.error(e); 
+            alert('Export failed'); 
+            clearInterval(progInterval);
+        }
         
-        btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>`;
-        btn.disabled = false;
+        setTimeout(() => {
+            btn.style.border = '';
+            btn.style.backgroundClip = '';
+            btn.style.backgroundImage = '';
+            btn.disabled = false;
+        }, 1000);
     };
 });
