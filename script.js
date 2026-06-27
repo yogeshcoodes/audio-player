@@ -1,6 +1,6 @@
 // ==========================================
 // script.js — Native True Bypass DSP Engine
-// Fixed: Playback issues, Aggressive Assets Scraper, Swipe Gestures, Download Progress Border
+// Fixed: All 6 assets on mobile, download for URL tracks, viewport stability
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     const $ = id => document.getElementById(id);
@@ -498,8 +498,9 @@ document.addEventListener('DOMContentLoaded', () => {
     bindSlider('sl-rev-pre', 'val-rev-pre', ' ms', updateReverbParams);
     bindSlider('sl-rev-low', 'val-rev-low', ' Hz', updateReverbParams);
 
-    // ── AGGRESSIVE ASSETS SCRAPER (For Local Servers) ──
+    // ── ASSETS LOADER — FIXED: All 6 samples + directory scraping fallback ──
     async function loadDefaultAssets() {
+        // Try directory scraping first (works with basic HTTP servers)
         try {
             const response = await fetch('assets/');
             if (response.ok) {
@@ -518,21 +519,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         file: null, duration: 0, index: i, element: null 
                     }));
                     
-                    searchBar.style.display = 'block';
-                    emptyState.style.display = 'none';
-                    sortAndRenderTracks();
-                    return;
+                    if (trackList.length > 0) {
+                        searchBar.style.display = 'block';
+                        emptyState.style.display = 'none';
+                        sortAndRenderTracks();
+                        return;
+                    }
                 }
             }
         } catch(e) {
-            console.log("Directory scraping unavailable. Injecting direct defaults.");
+            console.log("Directory scraping unavailable. Using built-in asset list.");
         }
 
-        // Hard fallback if no directory listing enabled on server
-        trackList = [
-            { title: 'sample-1', artist: 'Assets Directory', url: 'assets/sample-1.mp3', file: null, duration: 0, index: 0, element: null },
-            { title: 'sample-2', artist: 'Assets Directory', url: 'assets/sample-2.mp3', file: null, duration: 0, index: 1, element: null }
+        // FULL FALLBACK — all 6 samples explicitly listed (works everywhere including mobile)
+        const allSamples = [
+            'sample-1.mp3', 'sample-2.mp3', 'sample-3.mp3',
+            'sample-4.mp3', 'sample-5.mp3', 'sample-6.mp3'
         ];
+        
+        trackList = allSamples.map((filename, i) => ({
+            title: filename.replace(/\.[^/.]+$/, ''),
+            artist: 'Assets Directory',
+            url: 'assets/' + filename,
+            file: null,
+            duration: 0,
+            index: i,
+            element: null
+        }));
+        
         searchBar.style.display = 'block';
         emptyState.style.display = 'none';
         sortAndRenderTracks();
@@ -588,6 +602,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const durEl = item.querySelector('.song-duration');
                 if (durEl) durEl.textContent = formatTime(track.duration);
             };
+            temp.onerror = () => {
+                // If metadata fails to load, keep "--:--" but track is still playable
+                const durEl = item.querySelector('.song-duration');
+                if (durEl && durEl.textContent === '--:--') {
+                    // Will update on actual play via onloadedmetadata on main audio
+                }
+            };
         });
     }
 
@@ -603,7 +624,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.song-item').forEach(i => i.classList.remove('active-track'));
         if(t.element) t.element.classList.add('active-track');
         
-        $('btn-download').disabled = t.file === null;
+        // FIXED: Enable download for ALL tracks (URL-based assets AND uploaded files)
+        $('btn-download').disabled = false;
         
         await initAudioContext();
         audio.play().then(() => setPlayState(true)).catch(e => console.log("Playback error or Default asset missing: ", e));
@@ -661,20 +683,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     drawVisualizer();
 
-    // ── HIGH-FIDELITY OFFLINE EXPORT (WITH FAKE CIRCULAR PROGRESS BORDER) ──
+    // ── HIGH-FIDELITY OFFLINE EXPORT (FIXED: Works for URL-based assets too) ──
     $('btn-download').onclick = async () => {
-        if (currentTrackIndex < 0 || !trackList[currentTrackIndex].file) return;
+        if (currentTrackIndex < 0) return;
         
+        const track = trackList[currentTrackIndex];
         const pitchVal = parseFloat($('sl-pitch').value);
-        if (!Object.values(fx).some(v => v) && audio.playbackRate === 1.0 && pitchVal === 0) {
-            const a = document.createElement('a'); a.href = trackList[currentTrackIndex].url; a.download = trackList[currentTrackIndex].file.name; a.click(); return;
+        
+        // Quick export: no effects, no pitch shift, normal speed → direct download
+        const hasActiveFx = Object.values(fx).some(v => v);
+        if (!hasActiveFx && audio.playbackRate === 1.0 && pitchVal === 0) {
+            // For URL-based tracks, fetch and re-serve; for File-based, use blob URL
+            if (track.file) {
+                const a = document.createElement('a');
+                a.href = track.url;
+                a.download = track.file.name;
+                a.click();
+            } else {
+                // Fetch the URL and trigger download
+                try {
+                    const resp = await fetch(track.url);
+                    const blob = await resp.blob();
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = track.title + '.' + (blob.type.split('/')[1] || 'mp3');
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+                } catch(e) {
+                    console.error('Direct download failed:', e);
+                    alert('Could not download this track directly. Try applying an effect first.');
+                }
+            }
+            return;
         }
 
-        const btn = $('btn-download'); btn.disabled = true;
+        const btn = $('btn-download');
+        btn.disabled = true;
+        const originalHTML = btn.innerHTML;
         btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>`;
         
         // Circular Progress Border Animation via CSS Background
         btn.style.border = '2px solid transparent';
+        btn.style.backgroundOrigin = 'border-box';
         btn.style.backgroundClip = 'padding-box, border-box';
         
         let simProgress = 0;
@@ -684,9 +734,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 150);
 
         try {
-            const buffer = await trackList[currentTrackIndex].file.arrayBuffer();
+            // FIXED: Get audio data from URL if no File object available
+            let arrayBuffer;
+            if (track.file) {
+                arrayBuffer = await track.file.arrayBuffer();
+            } else {
+                const resp = await fetch(track.url);
+                arrayBuffer = await resp.arrayBuffer();
+            }
+            
             const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const decoded = await tempCtx.decodeAudioData(buffer);
+            const decoded = await tempCtx.decodeAudioData(arrayBuffer);
             
             const length = (decoded.length / audio.playbackRate) + (fx.reverb || fx.echo ? tempCtx.sampleRate * 4 : 0);
             const offCtx = new OfflineAudioContext(decoded.numberOfChannels, length, tempCtx.sampleRate);
@@ -734,20 +792,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 } offset++;
             }
             
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out], {type: "audio/wav"}));
-            a.download = `Processed_${trackList[currentTrackIndex].title}.wav`; a.click();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([out], {type: "audio/wav"}));
+            a.download = `Processed_${track.title}.wav`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 5000);
             tempCtx.close();
         } catch(e) { 
             console.error(e); 
-            alert('Export failed'); 
+            alert('Export failed: ' + (e.message || 'Unknown error')); 
             clearInterval(progInterval);
         }
         
         setTimeout(() => {
             btn.style.border = '';
+            btn.style.backgroundOrigin = '';
             btn.style.backgroundClip = '';
             btn.style.backgroundImage = '';
             btn.disabled = false;
+            btn.innerHTML = originalHTML;
         }, 1000);
     };
 });
