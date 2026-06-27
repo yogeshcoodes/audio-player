@@ -5,7 +5,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const $ = id => document.getElementById(id);
     const body = document.body;
-    
+
     // UI Connections
     const views = { 'songs-view': $('songs-view'), 'effects-panel': $('effects-panel') };
     const songListContainer = $('song-list');
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.style.setProperty('--accent', hex);
         document.documentElement.style.setProperty('--accent-glow', hexToRgbGlow(hex));
         localStorage.setItem('theme-accent', hex);
-        
+
         document.querySelectorAll('.color-dot').forEach(dot => {
             dot.classList.toggle('active-accent', dot.dataset.color === hex);
         });
@@ -56,14 +56,14 @@ document.addEventListener('DOMContentLoaded', () => {
         section.style.alignItems = 'flex-start';
         section.style.gap = '12px';
         section.style.marginTop = '8px';
-        
+
         const label = document.createElement('label');
         label.className = 'drawer-label';
         label.textContent = 'Accent Color';
-        
+
         const grid = document.createElement('div');
         grid.className = 'palette-grid';
-        
+
         colorPalette.forEach(hex => {
             const dot = document.createElement('div');
             dot.className = 'color-dot';
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dot.onclick = () => applyAccentColor(hex);
             grid.appendChild(dot);
         });
-        
+
         section.appendChild(label);
         section.appendChild(grid);
         drawerBody.appendChild(section);
@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.expandable .fx-header').forEach(header => {
         header.onclick = (e) => {
-            if(e.target.closest('.switch') || e.target.closest('.reset-btn')) return;
+            if (e.target.closest('.switch') || e.target.closest('.reset-btn')) return;
             header.parentElement.classList.toggle('open');
         };
     });
@@ -163,15 +163,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── NATIVE AUDIO ENGINE GRAPH ASSEMBLY ──
     const audio = new Audio();
     audio.preservesPitch = true;
-    
+
     let audioCtx, sourceNode, analyserNode;
-    
+
     const fx = {
-        clarity: false, eq: false, vocal: false, comp: false, limit: false, 
+        clarity: false, eq: false, vocal: false, comp: false, limit: false,
         echo: false, flanger: false, reverb: false, mono: false, invert: false
     };
 
-    let nodes = {}; 
+    let nodes = {};
 
     async function initAudioContext() {
         if (audioCtx) {
@@ -182,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sourceNode = audioCtx.createMediaElementSource(audio);
         analyserNode = audioCtx.createAnalyser();
         analyserNode.fftSize = 256;
-        
+
         buildEffectNodes(audioCtx);
         routeAudio();
         generateReverbIR();
@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function buildEffectNodes(ctx) {
         nodes.masterGain = ctx.createGain();
-        nodes.masterGain.gain.value = 0.95; 
+        nodes.masterGain.gain.value = 0.95;
 
         // 1. Clearity+ 
         nodes.clrMudCut = ctx.createBiquadFilter();
@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Pitch Shift
         nodes.pitchIn = ctx.createGain(); nodes.pitchOut = ctx.createGain();
         nodes.pitchDelay1 = ctx.createDelay(1.0); nodes.pitchDelay2 = ctx.createDelay(1.0);
-        nodes.pitchDelay1.delayTime.value = 0.1; nodes.pitchDelay2.delayTime.value = 0.1; 
+        nodes.pitchDelay1.delayTime.value = 0.1; nodes.pitchDelay2.delayTime.value = 0.1;
         nodes.pitchGain1 = ctx.createGain(); nodes.pitchGain2 = ctx.createGain();
         nodes.pitchModLfo = ctx.createOscillator(); nodes.pitchModLfo.type = 'sawtooth'; nodes.pitchModLfo.frequency.value = 4.5;
         nodes.pitchModGain = ctx.createGain(); nodes.pitchModGain.gain.value = 0.0;
@@ -216,14 +216,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // 3. EQ
         nodes.eq = [ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter()];
         nodes.eq[0].type = 'lowshelf'; nodes.eq[0].frequency.value = 100;
-        nodes.eq[1].type = 'peaking';  nodes.eq[1].frequency.value = 500;  nodes.eq[1].Q.value = 1.0;
-        nodes.eq[2].type = 'peaking';  nodes.eq[2].frequency.value = 2500; nodes.eq[2].Q.value = 1.0;
-        nodes.eq[3].type = 'highshelf';nodes.eq[3].frequency.value = 8000;
+        nodes.eq[1].type = 'peaking'; nodes.eq[1].frequency.value = 500; nodes.eq[1].Q.value = 1.0;
+        nodes.eq[2].type = 'peaking'; nodes.eq[2].frequency.value = 2500; nodes.eq[2].Q.value = 1.0;
+        nodes.eq[3].type = 'highshelf'; nodes.eq[3].frequency.value = 8000;
         nodes.eq[0].connect(nodes.eq[1]); nodes.eq[1].connect(nodes.eq[2]); nodes.eq[2].connect(nodes.eq[3]);
 
         // 4. Compressor
         nodes.comp = ctx.createDynamicsCompressor(); updateCompParams();
-        
+
         // 5. Limiter
         nodes.limit = ctx.createDynamicsCompressor();
         nodes.limit.ratio.value = 20; nodes.limit.attack.value = 0.001; nodes.limit.knee.value = 0;
@@ -232,18 +232,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // 6. Echo
         nodes.echoIn = ctx.createGain(); nodes.echoOut = ctx.createGain();
         nodes.echoDry = ctx.createGain(); nodes.echoWet = ctx.createGain();
-        nodes.echoDelay = ctx.createDelay(2.0); nodes.echoFb = ctx.createGain(); 
-        nodes.echoIn.connect(nodes.echoDry); nodes.echoIn.connect(nodes.echoDelay); 
-        nodes.echoDelay.connect(nodes.echoFb); nodes.echoFb.connect(nodes.echoDelay); 
+        nodes.echoDelay = ctx.createDelay(2.0); nodes.echoFb = ctx.createGain();
+        nodes.echoIn.connect(nodes.echoDry); nodes.echoIn.connect(nodes.echoDelay);
+        nodes.echoDelay.connect(nodes.echoFb); nodes.echoFb.connect(nodes.echoDelay);
         nodes.echoDelay.connect(nodes.echoWet); nodes.echoDry.connect(nodes.echoOut); nodes.echoWet.connect(nodes.echoOut);
         updateEchoParams();
 
         // 7. Flanger
         nodes.flangIn = ctx.createGain(); nodes.flangOut = ctx.createGain();
-        nodes.flangDelay = ctx.createDelay(1.0); nodes.flangFb = ctx.createGain(); 
-        nodes.flangLfo = ctx.createOscillator(); nodes.flangLfo.type = 'sine'; nodes.flangLfoGain = ctx.createGain(); 
+        nodes.flangDelay = ctx.createDelay(1.0); nodes.flangFb = ctx.createGain();
+        nodes.flangLfo = ctx.createOscillator(); nodes.flangLfo.type = 'sine'; nodes.flangLfoGain = ctx.createGain();
         nodes.flangLfo.connect(nodes.flangLfoGain); nodes.flangLfoGain.connect(nodes.flangDelay.delayTime); nodes.flangLfo.start();
-        nodes.flangIn.connect(nodes.flangOut); nodes.flangIn.connect(nodes.flangDelay); 
+        nodes.flangIn.connect(nodes.flangOut); nodes.flangIn.connect(nodes.flangDelay);
         nodes.flangDelay.connect(nodes.flangFb); nodes.flangFb.connect(nodes.flangDelay); nodes.flangDelay.connect(nodes.flangOut);
         updateFlangerParams();
 
@@ -274,19 +274,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function routeAudio() {
-        if(!audioCtx) return;
+        if (!audioCtx) return;
         sourceNode.disconnect();
-        if(nodes.pitchOut) nodes.pitchOut.disconnect(); 
-        if(nodes.clrComp) nodes.clrComp.disconnect();
-        if(nodes.eq) nodes.eq[3].disconnect();
-        if(nodes.vocMerge) nodes.vocMerge.disconnect(); 
-        if(nodes.mono) nodes.mono.disconnect(); 
-        if(nodes.invMerge) nodes.invMerge.disconnect();
-        if(nodes.flangOut) nodes.flangOut.disconnect(); 
-        if(nodes.echoOut) nodes.echoOut.disconnect(); 
-        if(nodes.revOut) nodes.revOut.disconnect();
-        if(nodes.comp) nodes.comp.disconnect(); 
-        if(nodes.limit) nodes.limit.disconnect();
+        if (nodes.pitchOut) nodes.pitchOut.disconnect();
+        if (nodes.clrComp) nodes.clrComp.disconnect();
+        if (nodes.eq) nodes.eq[3].disconnect();
+        if (nodes.vocMerge) nodes.vocMerge.disconnect();
+        if (nodes.mono) nodes.mono.disconnect();
+        if (nodes.invMerge) nodes.invMerge.disconnect();
+        if (nodes.flangOut) nodes.flangOut.disconnect();
+        if (nodes.echoOut) nodes.echoOut.disconnect();
+        if (nodes.revOut) nodes.revOut.disconnect();
+        if (nodes.comp) nodes.comp.disconnect();
+        if (nodes.limit) nodes.limit.disconnect();
 
         let curr = sourceNode;
 
@@ -296,16 +296,16 @@ document.addEventListener('DOMContentLoaded', () => {
             curr = nodes.pitchOut;
         }
 
-        if(fx.clarity) { curr.connect(nodes.clrMudCut); curr = nodes.clrComp; }
-        if(fx.eq) { curr.connect(nodes.eq[0]); curr = nodes.eq[3]; }
-        if(fx.vocal) { curr.connect(nodes.vocSplit); curr = nodes.vocMerge; }
-        if(fx.mono) { curr.connect(nodes.mono); curr = nodes.mono; }
-        if(fx.invert) { curr.connect(nodes.invSplit); curr = nodes.invMerge; }
-        if(fx.flanger) { curr.connect(nodes.flangIn); curr = nodes.flangOut; }
-        if(fx.echo) { curr.connect(nodes.echoIn); curr = nodes.echoOut; }
-        if(fx.reverb) { curr.connect(nodes.revIn); curr = nodes.revOut; }
-        if(fx.comp) { curr.connect(nodes.comp); curr = nodes.comp; }
-        if(fx.limit) { curr.connect(nodes.limit); curr = nodes.limit; }
+        if (fx.clarity) { curr.connect(nodes.clrMudCut); curr = nodes.clrComp; }
+        if (fx.eq) { curr.connect(nodes.eq[0]); curr = nodes.eq[3]; }
+        if (fx.vocal) { curr.connect(nodes.vocSplit); curr = nodes.vocMerge; }
+        if (fx.mono) { curr.connect(nodes.mono); curr = nodes.mono; }
+        if (fx.invert) { curr.connect(nodes.invSplit); curr = nodes.invMerge; }
+        if (fx.flanger) { curr.connect(nodes.flangIn); curr = nodes.flangOut; }
+        if (fx.echo) { curr.connect(nodes.echoIn); curr = nodes.echoOut; }
+        if (fx.reverb) { curr.connect(nodes.revIn); curr = nodes.revOut; }
+        if (fx.comp) { curr.connect(nodes.comp); curr = nodes.comp; }
+        if (fx.limit) { curr.connect(nodes.limit); curr = nodes.limit; }
 
         curr.connect(analyserNode);
         analyserNode.connect(nodes.masterGain);
@@ -328,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function generateReverbIR() {
-        if(!audioCtx) return;
+        if (!audioCtx) return;
         const decay = parseFloat($('sl-rev-room').value) / 100 * 5 + 0.1;
         const dampPct = parseFloat($('sl-rev-damp').value) / 100;
         const dampFreq = 20000 - (dampPct * 18000);
@@ -347,14 +347,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updatePitchShift() {
-        if(!audioCtx) return;
+        if (!audioCtx) return;
         const semitones = parseFloat($('sl-pitch').value);
-        nodes.pitchModGain.gain.value = (semitones / 12) * 0.025; 
+        nodes.pitchModGain.gain.value = (semitones / 12) * 0.025;
         nodes.pitchGain1.gain.value = semitones !== 0 ? 0.7 : 1.0;
         nodes.pitchGain2.gain.value = semitones !== 0 ? 0.7 : 0.0;
     }
     function updateReverbParams() {
-        if(!audioCtx) return;
+        if (!audioCtx) return;
         const wet = parseFloat($('sl-rev-wet').value) / 100;
         nodes.revWet.gain.value = wet; nodes.revDry.gain.value = 1 - (wet * 0.5);
         nodes.revWidth.setWidth(parseFloat($('sl-rev-stereo').value) / 100);
@@ -362,35 +362,35 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.revLowCut.frequency.value = parseFloat($('sl-rev-low').value);
     }
     function updateCompParams() {
-        if(!audioCtx) return;
+        if (!audioCtx) return;
         nodes.comp.threshold.value = parseFloat($('sl-comp-thresh').value);
         nodes.comp.ratio.value = parseFloat($('sl-comp-ratio').value);
         nodes.comp.attack.value = parseFloat($('sl-comp-att').value) / 1000;
         nodes.comp.release.value = parseFloat($('sl-comp-rel').value) / 1000;
     }
     function updateLimiterParams() {
-        if(!audioCtx) return;
+        if (!audioCtx) return;
         nodes.limit.threshold.value = parseFloat($('sl-lim-thresh').value);
         nodes.limit.release.value = parseFloat($('sl-lim-rel').value) / 1000;
     }
     function updateEchoParams() {
-        if(!audioCtx) return;
+        if (!audioCtx) return;
         const mix = parseFloat($('sl-echo-mix').value) / 100;
-        nodes.echoWet.gain.value = mix; nodes.echoDry.gain.value = 1 - (mix*0.5);
+        nodes.echoWet.gain.value = mix; nodes.echoDry.gain.value = 1 - (mix * 0.5);
         nodes.echoDelay.delayTime.value = parseFloat($('sl-echo-time').value) / 1000;
         nodes.echoFb.gain.value = parseFloat($('sl-echo-fb').value) / 100;
     }
     function updateFlangerParams() {
-        if(!audioCtx) return;
+        if (!audioCtx) return;
         nodes.flangLfo.frequency.value = parseFloat($('sl-flang-rate').value);
         const depth = parseFloat($('sl-flang-depth').value) / 100;
-        nodes.flangLfoGain.gain.value = depth * 0.005; 
+        nodes.flangLfoGain.gain.value = depth * 0.005;
         nodes.flangDelay.delayTime.value = 0.005 + (depth * 0.002);
         nodes.flangFb.gain.value = parseFloat($('sl-flang-fb').value) / 100;
     }
 
     const toggleMap = {
-        'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp', 'tgl-limit': 'limit', 
+        'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp', 'tgl-limit': 'limit',
         'tgl-echo': 'echo', 'tgl-flanger': 'flanger', 'tgl-reverb': 'reverb', 'tgl-mono': 'mono', 'tgl-invert': 'invert'
     };
     Object.keys(toggleMap).forEach(id => {
@@ -400,14 +400,14 @@ document.addEventListener('DOMContentLoaded', () => {
     $('res-speed').onclick = () => {
         $('sl-tempo').value = 1.0; audio.playbackRate = 1.0; $('val-tempo').textContent = '1.00x';
         $('sl-pitch').value = 0; updatePitchShift(); $('val-pitch').textContent = '0.0';
-        routeAudio(); 
+        routeAudio();
     };
     $('res-clarity').onclick = () => { $('tgl-clarity').checked = false; fx.clarity = false; routeAudio(); };
     $('res-eq').onclick = () => {
         $('tgl-eq').checked = false; fx.eq = false; $('eq-preset').value = 'flat';
-        ['low','lmid','hmid','high'].forEach((b, i) => {
+        ['low', 'lmid', 'hmid', 'high'].forEach((b, i) => {
             $(`sl-eq-${b}`).value = 0; $(`val-eq-${b}`).textContent = '0 dB';
-            if(audioCtx) nodes.eq[i].gain.value = 0;
+            if (audioCtx) nodes.eq[i].gain.value = 0;
         });
         routeAudio();
     };
@@ -452,19 +452,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const eqPresets = { 'flat': [0, 0, 0, 0], 'bass': [6, 2, 0, 0], 'acoustic': [-2, 2, 4, 3] };
     $('eq-preset').onchange = (e) => {
-        if(e.target.value === 'custom') return;
+        if (e.target.value === 'custom') return;
         const vals = eqPresets[e.target.value];
-        ['low','lmid','hmid','high'].forEach((b, i) => {
+        ['low', 'lmid', 'hmid', 'high'].forEach((b, i) => {
             $(`sl-eq-${b}`).value = vals[i];
             $(`val-eq-${b}`).textContent = (vals[i] > 0 ? '+' : '') + vals[i] + ' dB';
-            if(audioCtx) nodes.eq[i].gain.value = vals[i];
+            if (audioCtx) nodes.eq[i].gain.value = vals[i];
         });
     };
-    ['low','lmid','hmid','high'].forEach((b, i) => {
+    ['low', 'lmid', 'hmid', 'high'].forEach((b, i) => {
         $(`sl-eq-${b}`).oninput = (e) => {
             $('eq-preset').value = 'custom';
             $(`val-eq-${b}`).textContent = (e.target.value > 0 ? '+' : '') + e.target.value + ' dB';
-            if(audioCtx) nodes.eq[i].gain.value = e.target.value;
+            if (audioCtx) nodes.eq[i].gain.value = e.target.value;
         };
     });
 
@@ -472,12 +472,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let timer;
         $(id).oninput = e => {
             $(valId).textContent = e.target.value + suffix;
-            if(updater) updater();
-            if(isIR) { clearTimeout(timer); timer = setTimeout(generateReverbIR, 300); }
+            if (updater) updater();
+            if (isIR) { clearTimeout(timer); timer = setTimeout(generateReverbIR, 300); }
         };
     };
 
-    bindSlider('sl-tempo', 'val-tempo', 'x', () => { audio.playbackRate = parseFloat($('sl-tempo').value); $('val-tempo').textContent = parseFloat($('sl-tempo').value).toFixed(2)+'x'; });
+    bindSlider('sl-tempo', 'val-tempo', 'x', () => { audio.playbackRate = parseFloat($('sl-tempo').value); $('val-tempo').textContent = parseFloat($('sl-tempo').value).toFixed(2) + 'x'; });
     bindSlider('sl-pitch', 'val-pitch', '', () => { updatePitchShift(); routeAudio(); });
     bindSlider('sl-comp-thresh', 'val-comp-thresh', ' dB', updateCompParams);
     bindSlider('sl-comp-ratio', 'val-comp-ratio', ':1', updateCompParams);
@@ -507,18 +507,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const text = await response.text();
                 // Aggressive regex to catch any valid audio link in the directory listing
                 const matches = text.match(/href="([^"]+\.(mp3|wav|ogg|m4a|flac))"/gi);
-                
+
                 if (matches && matches.length > 0) {
                     let audioFiles = matches.map(m => m.split('"')[1]).map(f => f.split('/').pop());
                     audioFiles = [...new Set(audioFiles)]; // Distinct
-                    
+
                     trackList = audioFiles.map((filename, i) => ({
-                        title: decodeURIComponent(filename.replace(/\.[^/.]+$/, '')), 
-                        artist: 'Assets Directory', 
-                        url: 'assets/' + filename, 
-                        file: null, duration: 0, index: i, element: null 
+                        title: decodeURIComponent(filename.replace(/\.[^/.]+$/, '')),
+                        artist: 'Assets Directory',
+                        url: 'assets/' + filename,
+                        file: null, duration: 0, index: i, element: null
                     }));
-                    
+
                     if (trackList.length > 0) {
                         searchBar.style.display = 'block';
                         emptyState.style.display = 'none';
@@ -527,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-        } catch(e) {
+        } catch (e) {
             console.log("Directory scraping unavailable. Using built-in asset list.");
         }
 
@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'sample-1.mp3', 'sample-2.mp3', 'sample-3.mp3',
             'sample-4.mp3', 'sample-5.mp3', 'sample-6.mp3'
         ];
-        
+
         trackList = allSamples.map((filename, i) => ({
             title: filename.replace(/\.[^/.]+$/, ''),
             artist: 'Assets Directory',
@@ -546,24 +546,24 @@ document.addEventListener('DOMContentLoaded', () => {
             index: i,
             element: null
         }));
-        
+
         searchBar.style.display = 'block';
         emptyState.style.display = 'none';
         sortAndRenderTracks();
     }
-    loadDefaultAssets(); 
+    loadDefaultAssets();
 
     // ── FILE MANAGEMENT ──
     $('btn-open-folder').onclick = () => $('folder-input').click();
     $('folder-input').onchange = e => {
         const files = Array.from(e.target.files).filter(f => f.type.startsWith('audio/'));
         if (!files.length) return alert('No audio files found.');
-        
+
         trackList = files.map((file, i) => ({
             title: file.name.replace(/\.[^/.]+$/, ''), artist: 'Local File',
             url: URL.createObjectURL(file), file: file, duration: 0, index: i, element: null
         }));
-        
+
         searchBar.style.display = 'block';
         emptyState.style.display = 'none';
         sortAndRenderTracks();
@@ -576,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
         trackList.sort((a, b) => $('sort-select').value === 'name-asc' ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title));
         trackList.forEach((t, i) => t.index = i);
         songListContainer.innerHTML = '';
-        
+
         trackList.forEach((track, idx) => {
             const item = document.createElement('div');
             item.className = 'song-item';
@@ -585,14 +585,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="song-info"><h3>${escapeHtml(track.title)}</h3><p>${escapeHtml(track.artist)}</p></div>
                 <span class="song-duration">--:--</span>
             `;
-            
+
             // Initialization + Play handled here
-            item.onclick = async () => { 
+            item.onclick = async () => {
                 await initAudioContext();
-                if (currentTrackIndex === idx) togglePlay(); 
-                else playTrack(idx); 
+                if (currentTrackIndex === idx) togglePlay();
+                else playTrack(idx);
             };
-            
+
             songListContainer.appendChild(item);
             track.element = item;
 
@@ -622,11 +622,11 @@ document.addEventListener('DOMContentLoaded', () => {
         audio.src = t.url; audio.load();
         nowPlayingTitle.textContent = `${t.title}`;
         document.querySelectorAll('.song-item').forEach(i => i.classList.remove('active-track'));
-        if(t.element) t.element.classList.add('active-track');
-        
+        if (t.element) t.element.classList.add('active-track');
+
         // FIXED: Enable download for ALL tracks (URL-based assets AND uploaded files)
         $('btn-download').disabled = false;
-        
+
         await initAudioContext();
         audio.play().then(() => setPlayState(true)).catch(e => console.log("Playback error or Default asset missing: ", e));
     }
@@ -644,10 +644,10 @@ document.addEventListener('DOMContentLoaded', () => {
         pauseIcon.style.display = p ? 'block' : 'none';
     }
 
-    audio.ontimeupdate = () => { if (audio.duration) { progressBar.value = (audio.currentTime / audio.duration) * 1000; currentTimeEl.textContent = formatTime(audio.currentTime); }};
+    audio.ontimeupdate = () => { if (audio.duration) { progressBar.value = (audio.currentTime / audio.duration) * 1000; currentTimeEl.textContent = formatTime(audio.currentTime); } };
     audio.onloadedmetadata = () => { totalTimeEl.textContent = formatTime(audio.duration); };
     audio.onended = () => {
-        if (repeatMode === 'one') { audio.currentTime = 0; audio.play(); } 
+        if (repeatMode === 'one') { audio.currentTime = 0; audio.play(); }
         else if (repeatMode === 'all' || currentTrackIndex < trackList.length - 1 || shuffleMode) playNext();
         else { setPlayState(false); audio.currentTime = 0; progressBar.value = 0; }
     };
@@ -655,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function playNext() { if (trackList.length) playTrack(shuffleMode ? Math.floor(Math.random() * trackList.length) : (currentTrackIndex + 1) % trackList.length); }
     function playPrev() { if (trackList.length) playTrack(audio.currentTime > 3 ? currentTrackIndex : (shuffleMode ? Math.floor(Math.random() * trackList.length) : (currentTrackIndex - 1 + trackList.length) % trackList.length)); }
-    function formatTime(s) { if (!isFinite(s)) return '0:00'; const m = Math.floor(s/60), sec = Math.floor(s%60).toString().padStart(2,'0'); return `${m}:${sec}`; }
+    function formatTime(s) { if (!isFinite(s)) return '0:00'; const m = Math.floor(s / 60), sec = Math.floor(s % 60).toString().padStart(2, '0'); return `${m}:${sec}`; }
 
     $('btn-play').onclick = togglePlay;
     $('btn-next').onclick = playNext;
@@ -670,13 +670,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const w = visualizerCanvas.width, h = visualizerCanvas.height, data = new Uint8Array(analyserNode.frequencyBinCount);
         analyserNode.getByteFrequencyData(data);
         visualizerCtx.clearRect(0, 0, w, h);
-        
+
         visualizerCtx.fillStyle = getComputedStyle(body).getPropertyValue('--accent').trim();
         visualizerCtx.globalAlpha = 0.6;
         for (let i = 0; i < 64; i++) {
             let barH = Math.max(3, (data[i] / 255) * h);
             visualizerCtx.beginPath();
-            visualizerCtx.roundRect(i * (w/64), h - barH, (w/64) - 2, barH, 4); 
+            visualizerCtx.roundRect(i * (w / 64), h - barH, (w / 64) - 2, barH, 4);
             visualizerCtx.fill();
         }
         visualizerCtx.globalAlpha = 1.0;
@@ -686,10 +686,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── HIGH-FIDELITY OFFLINE EXPORT (FIXED: Works for URL-based assets too) ──
     $('btn-download').onclick = async () => {
         if (currentTrackIndex < 0) return;
-        
+
         const track = trackList[currentTrackIndex];
         const pitchVal = parseFloat($('sl-pitch').value);
-        
+
         // Quick export: no effects, no pitch shift, normal speed → direct download
         const hasActiveFx = Object.values(fx).some(v => v);
         if (!hasActiveFx && audio.playbackRate === 1.0 && pitchVal === 0) {
@@ -709,7 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     a.download = track.title + '.' + (blob.type.split('/')[1] || 'mp3');
                     a.click();
                     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-                } catch(e) {
+                } catch (e) {
                     console.error('Direct download failed:', e);
                     alert('Could not download this track directly. Try applying an effect first.');
                 }
@@ -721,12 +721,12 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true;
         const originalHTML = btn.innerHTML;
         btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>`;
-        
+
         // Circular Progress Border Animation via CSS Background
         btn.style.border = '2px solid transparent';
         btn.style.backgroundOrigin = 'border-box';
         btn.style.backgroundClip = 'padding-box, border-box';
-        
+
         let simProgress = 0;
         let progInterval = setInterval(() => {
             simProgress += (95 - simProgress) * 0.08;
@@ -742,17 +742,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const resp = await fetch(track.url);
                 arrayBuffer = await resp.arrayBuffer();
             }
-            
+
             const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
             const decoded = await tempCtx.decodeAudioData(arrayBuffer);
-            
+
             const length = (decoded.length / audio.playbackRate) + (fx.reverb || fx.echo ? tempCtx.sampleRate * 4 : 0);
             const offCtx = new OfflineAudioContext(decoded.numberOfChannels, length, tempCtx.sampleRate);
             const src = offCtx.createBufferSource(); src.buffer = decoded; src.playbackRate.value = audio.playbackRate;
-            
+
             let curr = src;
-            
-            if(fx.clarity) {
+
+            if (fx.clarity) {
                 const oMudCut = offCtx.createBiquadFilter(); oMudCut.type = 'peaking'; oMudCut.frequency.value = 250; oMudCut.Q.value = 0.8; oMudCut.gain.value = -2.5;
                 const oAirBoost = offCtx.createBiquadFilter(); oAirBoost.type = 'highshelf'; oAirBoost.frequency.value = 8000; oAirBoost.gain.value = 3.5;
                 const oComp = offCtx.createDynamicsCompressor(); oComp.threshold.value = -10; oComp.ratio.value = 2.5; oComp.attack.value = 0.01; oComp.release.value = 0.1;
@@ -766,16 +766,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const oWet = offCtx.createGain(); oWet.gain.value = nodes.revWet.gain.value;
                 curr.connect(oDry); curr.connect(oConv); oConv.connect(oWet);
                 oDry.connect(offCtx.destination); oWet.connect(offCtx.destination);
-            } else { 
-                curr.connect(offCtx.destination); 
+            } else {
+                curr.connect(offCtx.destination);
             }
 
             src.start(0);
             const rendered = await offCtx.startRendering();
-            
+
             clearInterval(progInterval);
             btn.style.backgroundImage = `linear-gradient(var(--bg-app), var(--bg-app)), conic-gradient(var(--accent) 100%, transparent 0)`;
-            
+
             let nCh = rendered.numberOfChannels, len = rendered.length * nCh * 2 + 44,
                 out = new ArrayBuffer(len), view = new DataView(out), chs = [], offset = 0, pos = 0;
             const set16 = d => { view.setUint16(pos, d, true); pos += 2; }; const set32 = d => { view.setUint32(pos, d, true); pos += 4; };
@@ -783,27 +783,27 @@ document.addEventListener('DOMContentLoaded', () => {
             set32(0x20746d66); set32(16); set16(1); set16(nCh);
             set32(rendered.sampleRate); set32(rendered.sampleRate * 2 * nCh); set16(nCh * 2); set16(16);
             set32(0x61746164); set32(len - pos - 4);
-            
-            for(let i=0; i<nCh; i++) chs.push(rendered.getChannelData(i));
-            while(pos < len) {
-                for(let i=0; i<nCh; i++) {
+
+            for (let i = 0; i < nCh; i++) chs.push(rendered.getChannelData(i));
+            while (pos < len) {
+                for (let i = 0; i < nCh; i++) {
                     let s = Math.max(-1, Math.min(1, chs[i][offset]));
                     view.setInt16(pos, s < 0 ? s * 32768 : s * 32767, true); pos += 2;
                 } offset++;
             }
-            
+
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([out], {type: "audio/wav"}));
+            a.href = URL.createObjectURL(new Blob([out], { type: "audio/wav" }));
             a.download = `Processed_${track.title}.wav`;
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 5000);
             tempCtx.close();
-        } catch(e) { 
-            console.error(e); 
-            alert('Export failed: ' + (e.message || 'Unknown error')); 
+        } catch (e) {
+            console.error(e);
+            alert('Export failed: ' + (e.message || 'Unknown error'));
             clearInterval(progInterval);
         }
-        
+
         setTimeout(() => {
             btn.style.border = '';
             btn.style.backgroundOrigin = '';

@@ -361,6 +361,7 @@ main {
         opacity: 0;
         transform: translateY(6px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -601,7 +602,7 @@ input:checked+.slider.round::before {
 }
 
 input[type="range"] {
-    -webkit-appearance: none;
+    /* -webkit-appearance: none; */
     width: 100%;
     background: transparent;
     cursor: pointer;
