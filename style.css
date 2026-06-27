@@ -48,8 +48,10 @@ body {
     color: var(--text-main);
     font-family: "Google Sans", -apple-system, Roboto, sans-serif;
     width: 100vw;
-    height: 100vh; /* Fallback */
-    height: 100dvh; /* Mobile viewport height fix */
+    height: 100vh;
+    /* Fallback */
+    height: 100dvh;
+    /* Mobile viewport height fix */
     overflow: hidden;
     user-select: none;
     transition: background-color 0.3s cubic-bezier(0.2, 0, 0, 1), color 0.3s cubic-bezier(0.2, 0, 0, 1);
@@ -59,7 +61,8 @@ body {
     display: flex;
     flex-direction: column;
     height: 100%;
-    height: 100dvh; /* Mobile viewport height fix */
+    height: 100dvh;
+    /* Mobile viewport height fix */
     width: 100%;
 }
 
@@ -313,7 +316,8 @@ main {
     overflow-y: auto;
     position: relative;
     scroll-behavior: smooth;
-    height: 0; /* Flex height constraint fix */
+    height: 0;
+    /* Flex height constraint fix */
 }
 
 .view {
@@ -332,6 +336,7 @@ main {
         opacity: 0;
         transform: translateY(6px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -572,7 +577,16 @@ input:checked+.slider.round::before {
 }
 
 input[type="range"] {
+    /* -webkit-appearance: none; */
+    width: 100%;
+    background: transparent;
+    cursor: pointer;
+    margin: 8px 0;
+}
+
+input[type="range"] {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
     background: transparent;
     cursor: pointer;
