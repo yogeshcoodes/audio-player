@@ -1013,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ['low', 'lmid', 'hmid', 'high'].forEach((b, i) => {
         $(`sl-eq-${b}`).oninput = (e) => {
             $('eq-preset').value =
-            'custom';
+                'custom';
             $(`val-eq-${b}`).textContent = (e.target.value > 0 ? '+' : '') + e.target.value + ' dB'; if (audioCtx)
                 nodes.eq[i].gain.value = e.target.value;
         };
