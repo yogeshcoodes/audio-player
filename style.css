@@ -32,8 +32,6 @@
     padding: 0;
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
-    transition: all 0.3s ease;
-    user-select: none;
 }
 
 ::-webkit-scrollbar {
@@ -159,8 +157,7 @@ button:active {
     transition: transform 0.35s cubic-bezier(0.2, 0, 0, 1);
     display: flex;
     flex-direction: column;
-    padding: 24px 20px;
-    padding-bottom: 40px;
+    padding: 20px 16px 20px;
     box-shadow: var(--shadow);
     border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
     overflow-y: auto;
@@ -175,7 +172,7 @@ button:active {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 32px;
+    margin-bottom: 24px;
     padding: 0 8px;
     flex-shrink: 0;
 }
@@ -188,7 +185,7 @@ button:active {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     padding: 0 8px;
 }
 
@@ -201,10 +198,10 @@ button:active {
     gap: 12px;
     background: var(--accent-glow);
     color: var(--accent);
-    padding: 16px;
+    padding: 14px;
     border-radius: var(--radius-pill);
     font-weight: 500;
-    font-size: 1rem;
+    font-size: 0.95rem;
     justify-content: center;
     width: 100%;
 }
@@ -219,9 +216,9 @@ button:active {
     background: var(--bg-hover);
     border: 1px solid var(--border);
     color: var(--text-main);
-    padding: 14px 20px;
+    padding: 12px 16px;
     border-radius: var(--radius-pill);
-    font-size: 1rem;
+    font-size: 0.95rem;
     outline: none;
     appearance: none;
     cursor: pointer;
@@ -239,9 +236,9 @@ button:active {
     background: var(--bg-hover);
     border: 1px solid var(--border);
     color: var(--text-main);
-    padding: 14px 20px;
+    padding: 12px 16px;
     border-radius: var(--radius-pill);
-    font-size: 1rem;
+    font-size: 0.95rem;
     justify-content: space-between;
     display: flex;
     align-items: center;
@@ -274,9 +271,9 @@ button:active {
 }
 
 .dropdown-option {
-    padding: 14px 20px;
+    padding: 12px 16px;
     cursor: pointer;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     transition: background 0.15s;
     color: var(--text-main);
 }
@@ -300,9 +297,9 @@ button:active {
 
 .format-btn {
     flex: 1;
-    padding: 12px 8px;
+    padding: 10px 6px;
     border-radius: var(--radius-pill);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 500;
     background: var(--bg-hover);
     color: var(--text-muted);
@@ -321,14 +318,14 @@ button:active {
 .palette-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 12px;
+    gap: 10px;
     width: 100%;
     margin-top: 8px;
 }
 
 .color-dot {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     cursor: pointer;
     border: 3px solid transparent;
@@ -359,7 +356,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     position: relative;
     width: 100%;
     min-width: 0;
@@ -367,7 +364,7 @@ header {
 
 .tabs {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     justify-content: left;
     align-items: center;
     flex: 1;
@@ -377,8 +374,8 @@ header {
 }
 
 .tabs button {
-    padding: 6px 2px;
-    font-size: 0.9rem;
+    padding: 5px 2px;
+    font-size: 0.85rem;
     font-weight: 500;
     color: var(--text-muted);
     border-bottom: 3px solid transparent;
@@ -393,7 +390,7 @@ header {
 }
 
 .search-bar {
-    padding-bottom: 10px;
+    padding-bottom: 8px;
     margin-bottom: 8px;
     width: 100%;
 }
@@ -403,8 +400,8 @@ header {
     background: var(--bg-hover);
     border: 1px solid transparent;
     border-radius: var(--radius-pill);
-    padding: 12px 20px;
-    font-size: 0.95rem;
+    padding: 10px 18px;
+    font-size: 0.9rem;
     color: var(--text-main);
     outline: none;
     transition: 0.2s cubic-bezier(0.2, 0, 0, 1);
@@ -421,19 +418,19 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
 .playlist-cards {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding-bottom: 32px;
+    gap: 10px;
+    padding-bottom: 24px;
 }
 
 .playlist-card {
     background: var(--bg-hover);
-    padding: 16px 22px;
+    padding: 14px 18px;
     border-radius: var(--radius-lg);
     cursor: pointer;
     transition: background-color 0.2s ease;
@@ -451,14 +448,14 @@ header {
 }
 
 .playlist-card h3 {
-    font-size: 1rem;
+    font-size: 0.95rem;
     color: var(--text-main);
 }
 
 .playlist-card p {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
-    margin-top: 4px;
+    margin-top: 3px;
 }
 
 /* Main Content */
@@ -467,13 +464,14 @@ main {
     overflow-y: auto;
     position: relative;
     scroll-behavior: smooth;
-    height: 0;
+    height: 0; /* flex basis for proper flex sizing */
     overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .view {
     display: none;
-    padding: 12px 16px;
+    padding: 10px 14px;
     animation: fade 0.25s cubic-bezier(0.2, 0, 0, 1);
     height: 100%;
 }
@@ -487,7 +485,6 @@ main {
         opacity: 0;
         transform: translateY(6px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
@@ -502,7 +499,7 @@ main {
     align-items: center;
     justify-content: center;
     text-align: center;
-    gap: 16px;
+    gap: 14px;
     color: var(--text-muted);
     width: 100%;
     height: 100%;
@@ -516,18 +513,18 @@ main {
 .song-list {
     display: flex;
     flex-direction: column;
-    padding-bottom: 32px;
+    padding-bottom: 28px;
 }
 
 .song-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
+    gap: 10px;
+    padding: 9px 12px;
     border-radius: var(--radius-lg);
     cursor: pointer;
     transition: background-color 0.2s ease, border-color 0.2s ease;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
     border: 1px solid transparent;
     position: relative;
 }
@@ -541,9 +538,9 @@ main {
 }
 
 .song-cover {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
     background: var(--bg-panel);
     border: 1px solid var(--border);
     display: flex;
@@ -555,7 +552,6 @@ main {
     position: relative;
 }
 
-/* Live playing indicator overlay on cover */
 .playing-indicator {
     position: absolute;
     inset: 0;
@@ -564,7 +560,7 @@ main {
     align-items: center;
     justify-content: center;
     color: #fff;
-    border-radius: 12px;
+    border-radius: 10px;
     z-index: 2;
 }
 
@@ -578,7 +574,7 @@ main {
 }
 
 .song-info h3 {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -587,25 +583,24 @@ main {
 }
 
 .song-info p {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
-    margin-top: 3px;
+    margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-/* Heart/Favorite button alignment */
 .heart-btn {
     margin-left: auto;
     z-index: 2;
-    padding: 8px;
+    padding: 6px;
     transition: color 0.2s;
 }
 
 .heart-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
 }
 
 .heart-btn:hover {
@@ -629,15 +624,15 @@ main {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 18px;
+    padding: 12px 16px;
 }
 
 .fx-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 500;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .chevron {
@@ -653,7 +648,7 @@ main {
 .fx-controls {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .fx-body {
@@ -661,29 +656,29 @@ main {
     transition: max-height 0.35s cubic-bezier(0.2, 0, 0, 1), opacity 0.25s ease, padding 0.35s cubic-bezier(0.2, 0, 0, 1);
     opacity: 0;
     pointer-events: none;
-    padding: 0 18px;
+    padding: 0 16px;
 }
 
 .fx-body.always-open {
     max-height: unset;
     opacity: 1;
     pointer-events: auto;
-    padding-bottom: 18px;
+    padding-bottom: 16px;
 }
 
 .expandable.open .fx-body {
     max-height: 600px;
     opacity: 1;
     pointer-events: auto;
-    padding-bottom: 18px;
+    padding-bottom: 16px;
 }
 
 /* Switches & Sliders */
 .switch {
     position: relative;
     display: inline-block;
-    width: 46px;
-    height: 28px;
+    width: 42px;
+    height: 26px;
     flex-shrink: 0;
 }
 
@@ -706,8 +701,8 @@ main {
 .slider.round::before {
     position: absolute;
     content: "";
-    height: 20px;
-    width: 20px;
+    height: 18px;
+    width: 18px;
     left: 2px;
     bottom: 2px;
     background-color: var(--text-muted);
@@ -720,24 +715,24 @@ input:checked+.slider.round {
 }
 
 input:checked+.slider.round::before {
-    transform: translateX(18px);
+    transform: translateX(16px);
     background-color: var(--bg-app);
 }
 
 .slider-group {
-    margin-bottom: 18px;
+    margin-bottom: 16px;
 }
 
 .slider-group:last-child {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .slider-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
-    font-size: 0.9rem;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
     color: var(--text-main);
     font-weight: 500;
 }
@@ -747,9 +742,9 @@ input:checked+.slider.round::before {
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     background: var(--accent-glow);
-    padding: 3px 9px;
+    padding: 2px 8px;
     border-radius: var(--radius-pill);
-    font-size: 0.78rem;
+    font-size: 0.75rem;
 }
 
 input[type="range"] {
@@ -758,7 +753,7 @@ input[type="range"] {
     width: 100%;
     background: transparent;
     cursor: pointer;
-    margin: 6px 0;
+    margin: 4px 0;
 }
 
 input[type="range"]:focus {
@@ -791,21 +786,20 @@ input[type="range"]::-webkit-slider-thumb:active {
 footer {
     background: var(--bg-app);
     position: relative;
-    padding: 8px 14px 6px;
-    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 12px 4px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
     z-index: 20;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.03);
     flex-shrink: 0;
 }
 
-/* Download Button top bar styles */
 #btn-download {
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     background: transparent;
     border: none;
     border-radius: 50%;
@@ -840,20 +834,20 @@ footer {
 
 #visualizer {
     width: 100%;
-    height: 24px;
+    height: 22px;
     border-radius: 6px;
     pointer-events: none;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     opacity: 0.85;
 }
 
 .now-playing-container {
     text-align: center;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 
 .now-playing-text {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 500;
     letter-spacing: -0.01em;
     padding-top: 2px;
@@ -862,11 +856,11 @@ footer {
 .progress-container {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 0.75rem;
+    gap: 8px;
+    font-size: 0.7rem;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     font-weight: 500;
 }
 
@@ -879,7 +873,7 @@ footer {
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    max-width: 300px;
+    max-width: 280px;
     margin: 0 auto;
 }
 
@@ -890,8 +884,8 @@ footer {
 .play-btn {
     background: var(--accent-glow);
     color: var(--accent);
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: var(--radius-pill);
     display: flex;
     align-items: center;
@@ -911,7 +905,7 @@ footer {
 .np-btn-repeat.active {
     color: var(--accent);
     background: var(--accent-glow);
-    padding: 8px;
+    padding: 6px;
     border-radius: 50%;
 }
 
@@ -940,29 +934,29 @@ footer {
     height: 5px;
     background: var(--border);
     border-radius: 3px;
-    margin: 12px auto 8px;
+    margin: 10px auto 6px;
     flex-shrink: 0;
 }
 
 .np-overlay-content {
     flex: 1;
-    padding: 0 20px;
+    padding: 0 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 2.5vh;
+    gap: 2vh;
     overflow-y: auto;
-    padding-bottom: 4vh;
+    padding-bottom: 3vh;
     -webkit-overflow-scrolling: touch;
 }
 
 .np-art-container {
     width: 100%;
-    max-width: 260px;
-    max-height: 260px;
+    max-width: 220px;
+    max-height: 220px;
     aspect-ratio: 1 / 1;
-    border-radius: 24px;
+    border-radius: 20px;
     overflow: hidden;
     background: var(--bg-panel);
     border: 1px solid var(--border);
@@ -991,7 +985,7 @@ footer {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-shrink: 0;
 }
 
@@ -1000,29 +994,28 @@ footer {
 }
 
 .np-track-info h2 {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: 600;
 }
 
 .np-track-info p {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--text-muted);
     margin-top: 2px;
 }
 
-/* OVERLAY CONTROLS */
 .np-controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    max-width: 300px;
+    max-width: 280px;
     margin-top: 2px;
 }
 
 .np-controls .play-btn {
-    width: 60px;
-    height: 60px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
 }
 
@@ -1037,19 +1030,19 @@ footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
 }
 
 .np-lyrics-display {
     background: var(--bg-panel);
-    border-radius: 16px;
-    padding: 12px;
-    max-height: 120px;
+    border-radius: 14px;
+    padding: 10px;
+    max-height: 100px;
     overflow-y: auto;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     line-height: 1.5;
     white-space: pre-wrap;
     color: var(--text-main);
@@ -1064,9 +1057,9 @@ footer {
     width: 100%;
     background: var(--bg-panel);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 12px;
-    font-size: 0.85rem;
+    border-radius: 14px;
+    padding: 10px;
+    font-size: 0.8rem;
     color: var(--text-main);
     font-family: inherit;
     resize: vertical;
@@ -1095,10 +1088,10 @@ footer {
 .toast {
     background: var(--bg-panel);
     color: var(--text-main);
-    padding: 14px 20px;
+    padding: 12px 18px;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 500;
     text-align: center;
     pointer-events: auto;
@@ -1112,27 +1105,12 @@ footer {
 }
 
 @keyframes toastIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes toastOut {
-    from {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    to {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-20px); }
 }
 
 /* ── Custom Modal ── */
@@ -1146,7 +1124,7 @@ footer {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 20px;
     transition: opacity 0.3s cubic-bezier(0.2, 0, 0, 1);
     opacity: 1;
 }
@@ -1159,37 +1137,30 @@ footer {
 .custom-modal-card {
     background: var(--bg-panel);
     border-radius: var(--radius-lg);
-    padding: 28px 24px 20px;
+    padding: 24px 20px 18px;
     width: 100%;
-    max-width: 360px;
+    max-width: 320px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
     animation: modalIn 0.3s cubic-bezier(0.2, 0, 0, 1);
 }
 
 @keyframes modalIn {
-    from {
-        opacity: 0;
-        transform: scale(0.92) translateY(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-    }
+    from { opacity: 0; transform: scale(0.92) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .custom-modal-card h3 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--text-main);
     text-align: center;
 }
 
 .custom-modal-card p {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--text-muted);
     text-align: center;
     line-height: 1.4;
@@ -1201,120 +1172,92 @@ footer {
 
 .custom-modal-buttons {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
 }
 
 .custom-modal-buttons .drawer-btn {
     flex: 1;
-    padding: 14px;
-    font-size: 0.95rem;
+    padding: 12px;
+    font-size: 0.9rem;
 }
 
-/* Desktop / Tablet */
+/* ── Desktop / Tablet Responsive ── */
 @media (min-width: 768px) {
     header {
         padding: 12px 30px 0;
     }
-
     .tabs {
-        gap: 16px;
+        gap: 14px;
         margin-left: 1rem;
     }
-
     .tabs button {
-        font-size: 1rem;
-        padding: 8px 4px;
+        font-size: 0.95rem;
+        padding: 6px 4px;
     }
-
     main {
         padding: 0 30px;
     }
-
     .view {
         padding: 16px 8px;
     }
-
     .song-list {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
         gap: 12px;
     }
-
     footer {
-        padding: 12px 30px 10px;
-        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        padding: 10px 30px 8px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
-
-    #btn-download {
-        width: 48px;
-        height: 48px;
-    }
-
     #visualizer {
-        height: 36px;
-        margin-bottom: 10px;
+        height: 28px;
+        margin-bottom: 8px;
     }
-
     .now-playing-container {
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
-
     .now-playing-text {
-        font-size: 0.95rem;
+        font-size: 0.9rem;
     }
-
     .progress-container {
-        margin-bottom: 12px;
-        font-size: 0.8rem;
+        margin-bottom: 10px;
+        font-size: 0.75rem;
     }
-
     .controls {
-        gap: 24px;
+        gap: 20px;
         justify-content: center;
-        max-width: 360px;
+        max-width: 340px;
     }
-
     .play-btn {
-        width: 56px;
-        height: 56px;
+        width: 52px;
+        height: 52px;
     }
-
-    .icon-btn {
-        padding: 10px;
-    }
-
     .np-overlay-content {
         justify-content: center;
         gap: 3vh;
         padding: 0 24px;
         padding-bottom: 4vh;
     }
-
     .np-art-container {
-        max-width: 320px;
-        max-height: 320px;
+        max-width: 300px;
+        max-height: 300px;
     }
-
     .np-track-info h2 {
-        font-size: 1.4rem;
+        font-size: 1.3rem;
     }
-
     .np-track-info p {
-        font-size: 0.95rem;
+        font-size: 0.9rem;
     }
-
     .np-controls {
-        max-width: 360px;
+        max-width: 340px;
     }
-
     .np-controls .play-btn {
-        width: 72px;
-        height: 72px;
+        width: 68px;
+        height: 68px;
     }
-
     .np-lyrics-display {
-        max-height: 150px;
+        max-height: 130px;
     }
 }
 
@@ -1322,186 +1265,148 @@ footer {
     header {
         padding: 16px 48px 0;
     }
-
     .tabs {
-        gap: 20px;
+        gap: 18px;
     }
-
     .tabs button {
-        font-size: 1.05rem;
+        font-size: 1rem;
     }
-
     main {
         padding: 0 48px;
     }
-
     footer {
-        padding: 14px 48px 12px;
-        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        padding: 12px 48px 10px;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     }
-
     .np-art-container {
-        max-width: 360px;
-        max-height: 360px;
+        max-width: 340px;
+        max-height: 340px;
     }
-
     .np-controls .play-btn {
-        width: 76px;
-        height: 76px;
+        width: 72px;
+        height: 72px;
     }
 }
 
-/* Small phone fixes */
+/* Small phone optimizations */
 @media (max-width: 380px) {
     .tabs {
-        gap: 4px;
+        gap: 3px;
     }
-
     .tabs button {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         padding: 4px 1px;
     }
-
     .icon-btn {
         padding: 8px;
     }
-
     #btn-menu,
     #btn-download {
         padding: 8px;
     }
-
     #btn-download {
         width: 36px;
         height: 36px;
     }
-
     #btn-download svg {
         width: 18px;
         height: 18px;
     }
-
-    .np-overlay-content {
-        gap: 1.8vh;
-        padding: 0 14px;
-        padding-bottom: 3vh;
-    }
-
-    .np-art-container {
-        max-width: 200px;
-        max-height: 200px;
-    }
-
-    .np-controls .play-btn {
-        width: 50px;
-        height: 50px;
-    }
-
-    .np-controls .play-btn svg {
-        width: 28px;
-        height: 28px;
-    }
-
-    .np-track-info h2 {
-        font-size: 1.1rem;
-    }
-
-    .np-track-info p {
-        font-size: 0.8rem;
-    }
-
-    .np-lyrics-display {
-        max-height: 90px;
-        font-size: 0.78rem;
-    }
-
-    .np-controls {
-        max-width: 260px;
-    }
-
-    .np-controls .icon-btn {
-        padding: 6px;
-    }
-
-    .controls {
-        max-width: 260px;
-    }
-
-    .play-btn {
-        width: 42px;
-        height: 42px;
-    }
-
-    .play-btn svg {
-        width: 26px;
-        height: 26px;
-    }
-
-    footer {
-        padding: 6px 8px 4px;
-        padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
-    }
-
-    .progress-container {
-        gap: 6px;
-        font-size: 0.7rem;
-        margin-bottom: 6px;
-    }
-
-    .now-playing-text {
-        font-size: 0.78rem;
-    }
-
-    #visualizer {
-        height: 20px;
-        margin-bottom: 4px;
-    }
-
-    .drawer {
-        width: 280px;
-        max-width: 90vw;
-        padding: 20px 14px 50px;
-    }
-
-    .drawer-btn {
-        padding: 12px;
-        font-size: 0.9rem;
-    }
-}
-
-/* Short screen fixes for overlay */
-@media (max-height: 700px) {
     .np-overlay-content {
         gap: 1.5vh;
+        padding: 0 12px;
         padding-bottom: 2vh;
     }
-
     .np-art-container {
         max-width: 180px;
         max-height: 180px;
     }
-
     .np-controls .play-btn {
-        width: 50px;
-        height: 50px;
+        width: 48px;
+        height: 48px;
     }
-
     .np-controls .play-btn svg {
-        width: 28px;
-        height: 28px;
+        width: 26px;
+        height: 26px;
     }
-
+    .np-track-info h2 {
+        font-size: 1rem;
+    }
+    .np-track-info p {
+        font-size: 0.75rem;
+    }
     .np-lyrics-display {
         max-height: 80px;
-        font-size: 0.8rem;
-        padding: 10px;
+        font-size: 0.75rem;
     }
+    .np-controls {
+        max-width: 240px;
+    }
+    .controls {
+        max-width: 240px;
+    }
+    .play-btn {
+        width: 40px;
+        height: 40px;
+    }
+    .play-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+    footer {
+        padding: 4px 8px 2px;
+        padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px));
+    }
+    .progress-container {
+        gap: 6px;
+        font-size: 0.65rem;
+        margin-bottom: 4px;
+    }
+    .now-playing-text {
+        font-size: 0.72rem;
+    }
+    #visualizer {
+        height: 18px;
+        margin-bottom: 2px;
+    }
+    .drawer {
+        width: 260px;
+        max-width: 90vw;
+        padding: 16px 12px 20px;
+    }
+    .drawer-btn {
+        padding: 12px;
+        font-size: 0.85rem;
+    }
+}
 
+/* Short screen adjustments */
+@media (max-height: 700px) {
+    .np-overlay-content {
+        gap: 1.2vh;
+        padding-bottom: 2vh;
+    }
+    .np-art-container {
+        max-width: 160px;
+        max-height: 160px;
+    }
+    .np-controls .play-btn {
+        width: 48px;
+        height: 48px;
+    }
+    .np-controls .play-btn svg {
+        width: 26px;
+        height: 26px;
+    }
+    .np-lyrics-display {
+        max-height: 70px;
+        font-size: 0.75rem;
+        padding: 8px;
+    }
     .np-track-info h2 {
-        font-size: 1.1rem;
+        font-size: 1rem;
     }
-
     .np-overlay-handle {
-        margin: 8px auto 4px;
+        margin: 6px auto 4px;
     }
 }
