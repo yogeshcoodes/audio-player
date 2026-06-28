@@ -1354,7 +1354,7 @@ footer {
     }
     footer {
         padding: 4px 8px 2px;
-        padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
     .progress-container {
         gap: 6px;
