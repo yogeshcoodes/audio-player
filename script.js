@@ -747,7 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         url: 'assets/' + filename,
                         file: null, duration: 0, index: i, element: null,
                         dateAdded: Date.now(), dateModified: Date.now(), albumArt: null, lyrics: null,
-                        isFavorite: false, folderName: 'Default Assets'
+                        isFavorite: false, folderName: 'Default'
                     }));
 
                     searchBar.style.display = 'block';
