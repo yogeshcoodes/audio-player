@@ -356,7 +356,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     position: relative;
     width: 100%;
     min-width: 0;
@@ -364,18 +364,18 @@ header {
 
 .tabs {
     display: flex;
-    gap: 6px;
+    gap: 10px;
     justify-content: left;
     align-items: center;
     flex: 1;
-    margin-left: 0.5rem;
+    margin-left: 0.3rem;
     min-width: 0;
     flex-wrap: nowrap;
 }
 
 .tabs button {
     padding: 5px 2px;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 500;
     color: var(--text-muted);
     border-bottom: 3px solid transparent;
@@ -464,7 +464,7 @@ main {
     overflow-y: auto;
     position: relative;
     scroll-behavior: smooth;
-    height: 0; /* flex basis for proper flex sizing */
+    height: 0;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
 }
@@ -1290,27 +1290,26 @@ footer {
 
 /* Small phone optimizations */
 @media (max-width: 380px) {
-    .tabs {
-        gap: 3px;
-    }
-    .tabs button {
-        font-size: 0.75rem;
-        padding: 4px 1px;
-    }
     .icon-btn {
-        padding: 8px;
+        padding: 6px;
     }
     #btn-menu,
     #btn-download {
-        padding: 8px;
-    }
-    #btn-download {
-        width: 36px;
-        height: 36px;
+        padding: 6px;
+        width: 32px;
+        height: 32px;
     }
     #btn-download svg {
         width: 18px;
         height: 18px;
+    }
+    .tabs {
+        gap: 8px;
+        margin-left: 0.2rem;
+    }
+    .tabs button {
+        font-size: 0.8rem;
+        padding: 4px 2px;
     }
     .np-overlay-content {
         gap: 1.5vh;
