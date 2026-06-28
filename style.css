@@ -5,6 +5,7 @@
     --bg-app: #ffffff;
     --bg-panel: #f7f9fc;
     --bg-hover: #eef2f6;
+    --bg-header: rgba(255, 255, 255, 0.75);
     --border: #e1e5eb;
     --text-main: #1f1f1f;
     --text-muted: #5f6368;
@@ -19,6 +20,7 @@
     --bg-app: #000000;
     --bg-panel: #131314;
     --bg-hover: #1e1e20;
+    --bg-header: rgba(0, 0, 0, 0.75);
     --border: #303034;
     --text-main: #e3e3e3;
     --text-muted: #8e8e93;
@@ -37,6 +39,12 @@
 ::-webkit-scrollbar {
     width: 0;
     height: 0;
+}
+
+html,
+body {
+    overscroll-behavior-y: none;
+    /* Prevents mobile pull-to-refresh */
 }
 
 html {
@@ -346,7 +354,9 @@ button:active {
 header {
     padding: 8px 10px 0;
     flex-shrink: 0;
-    background: var(--bg-app);
+    background: var(--bg-header);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     z-index: 10;
     overflow-x: hidden;
     width: 100%;
@@ -371,6 +381,13 @@ header {
     margin-left: 0.3rem;
     min-width: 0;
     flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.tabs::-webkit-scrollbar {
+    display: none;
 }
 
 .tabs button {
@@ -485,6 +502,7 @@ main {
         opacity: 0;
         transform: translateY(6px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -923,6 +941,8 @@ footer {
     border-radius: 0;
     box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.15);
     overflow: hidden;
+    overscroll-behavior-y: none;
+    /* Mobile pull-down fix */
 }
 
 .now-playing-overlay.open {
@@ -940,21 +960,26 @@ footer {
 
 .np-overlay-content {
     flex: 1;
-    padding: 0 16px;
+    padding: 0 16px 5vh;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 2vh;
+    gap: 3vh;
     overflow-y: auto;
-    padding-bottom: 3vh;
     -webkit-overflow-scrolling: touch;
+}
+
+.np-overlay-content::before,
+.np-overlay-content::after {
+    content: "";
+    margin: auto;
 }
 
 .np-art-container {
     width: 100%;
-    max-width: 220px;
-    max-height: 220px;
+    max-width: 280px;
+    max-height: 280px;
     aspect-ratio: 1 / 1;
     border-radius: 20px;
     overflow: hidden;
@@ -1105,12 +1130,27 @@ footer {
 }
 
 @keyframes toastIn {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
+
 @keyframes toastOut {
-    from { opacity: 1; transform: translateY(0); }
-    to { opacity: 0; transform: translateY(-20px); }
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
 }
 
 /* ── Custom Modal ── */
@@ -1148,8 +1188,15 @@ footer {
 }
 
 @keyframes modalIn {
-    from { opacity: 0; transform: scale(0.92) translateY(20px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
+    from {
+        opacity: 0;
+        transform: scale(0.92) translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
 }
 
 .custom-modal-card h3 {
@@ -1187,75 +1234,92 @@ footer {
     header {
         padding: 12px 30px 0;
     }
+
     .tabs {
         gap: 14px;
         margin-left: 1rem;
     }
+
     .tabs button {
         font-size: 0.95rem;
         padding: 6px 4px;
     }
+
     main {
         padding: 0 30px;
     }
+
     .view {
         padding: 16px 8px;
     }
+
     .song-list {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
         gap: 12px;
     }
+
     footer {
         padding: 10px 30px 8px;
         padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
+
     #visualizer {
         height: 28px;
         margin-bottom: 8px;
     }
+
     .now-playing-container {
         margin-bottom: 8px;
     }
+
     .now-playing-text {
         font-size: 0.9rem;
     }
+
     .progress-container {
         margin-bottom: 10px;
         font-size: 0.75rem;
     }
+
     .controls {
         gap: 20px;
         justify-content: center;
         max-width: 340px;
     }
+
     .play-btn {
         width: 52px;
         height: 52px;
     }
+
     .np-overlay-content {
-        justify-content: center;
-        gap: 3vh;
-        padding: 0 24px;
-        padding-bottom: 4vh;
+        gap: 4vh;
+        padding: 0 24px 5vh;
     }
+
     .np-art-container {
         max-width: 300px;
         max-height: 300px;
     }
+
     .np-track-info h2 {
         font-size: 1.3rem;
     }
+
     .np-track-info p {
         font-size: 0.9rem;
     }
+
     .np-controls {
         max-width: 340px;
     }
+
     .np-controls .play-btn {
         width: 68px;
         height: 68px;
     }
+
     .np-lyrics-display {
         max-height: 130px;
     }
@@ -1265,23 +1329,29 @@ footer {
     header {
         padding: 16px 48px 0;
     }
+
     .tabs {
         gap: 18px;
     }
+
     .tabs button {
         font-size: 1rem;
     }
+
     main {
         padding: 0 48px;
     }
+
     footer {
         padding: 12px 48px 10px;
         padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     }
+
     .np-art-container {
         max-width: 340px;
         max-height: 340px;
     }
+
     .np-controls .play-btn {
         width: 72px;
         height: 72px;
@@ -1293,86 +1363,106 @@ footer {
     .icon-btn {
         padding: 6px;
     }
+
     #btn-menu,
     #btn-download {
         padding: 6px;
         width: 32px;
         height: 32px;
     }
+
     #btn-download svg {
         width: 18px;
         height: 18px;
     }
+
     .tabs {
-        gap: 8px;
+        gap: 6px;
         margin-left: 0.2rem;
     }
+
     .tabs button {
-        font-size: 0.8rem;
-        padding: 4px 2px;
+        font-size: 0.92rem;
+        padding: 6px 5px;
     }
+
     .np-overlay-content {
-        gap: 1.5vh;
-        padding: 0 12px;
-        padding-bottom: 2vh;
+        gap: 2vh;
+        padding: 0 12px 3vh;
     }
+
     .np-art-container {
-        max-width: 180px;
-        max-height: 180px;
+        max-width: 220px;
+        max-height: 220px;
     }
+
     .np-controls .play-btn {
         width: 48px;
         height: 48px;
     }
+
     .np-controls .play-btn svg {
         width: 26px;
         height: 26px;
     }
+
     .np-track-info h2 {
         font-size: 1rem;
     }
+
     .np-track-info p {
         font-size: 0.75rem;
     }
+
     .np-lyrics-display {
         max-height: 80px;
         font-size: 0.75rem;
     }
+
     .np-controls {
         max-width: 240px;
     }
+
     .controls {
         max-width: 240px;
     }
+
     .play-btn {
         width: 40px;
         height: 40px;
     }
+
     .play-btn svg {
         width: 24px;
         height: 24px;
     }
+
     footer {
         padding: 4px 8px 2px;
         padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
+
     .progress-container {
         gap: 6px;
         font-size: 0.65rem;
         margin-bottom: 4px;
     }
+
     .now-playing-text {
         font-size: 0.72rem;
     }
+
     #visualizer {
         height: 18px;
         margin-bottom: 2px;
     }
+
     .drawer {
         width: 260px;
         max-width: 90vw;
         padding: 16px 12px 20px;
     }
+
     .drawer-btn {
         padding: 12px;
         font-size: 0.85rem;
@@ -1382,29 +1472,41 @@ footer {
 /* Short screen adjustments */
 @media (max-height: 700px) {
     .np-overlay-content {
-        gap: 1.2vh;
-        padding-bottom: 2vh;
+        gap: 2vh;
+        padding-top: 10px;
+        justify-content: flex-start;
     }
+
+    .np-overlay-content::before,
+    .np-overlay-content::after {
+        display: none;
+    }
+
     .np-art-container {
-        max-width: 160px;
-        max-height: 160px;
+        max-width: 180px;
+        max-height: 180px;
     }
+
     .np-controls .play-btn {
         width: 48px;
         height: 48px;
     }
+
     .np-controls .play-btn svg {
         width: 26px;
         height: 26px;
     }
+
     .np-lyrics-display {
         max-height: 70px;
         font-size: 0.75rem;
         padding: 8px;
     }
+
     .np-track-info h2 {
         font-size: 1rem;
     }
+
     .np-overlay-handle {
         margin: 6px auto 4px;
     }

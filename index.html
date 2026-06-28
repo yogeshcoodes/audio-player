@@ -82,11 +82,9 @@
                         <button class="format-btn" data-format="mp3">MP3</button>
                         <button class="format-btn" data-format="flac">FLAC</button>
                     </div>
-                    <!-- <span id="format-note" style="font-size:0.75rem;color:var(--text-muted);">WAV — Lossless,
-                        universal</span> -->
+
                 </div>
-                <!-- Spacer for drawer bottom -->
-                <!-- <div style="height: 40px; flex-shrink: 0;"></div> -->
+
             </div>
         </div>
 
@@ -118,7 +116,6 @@
         </header>
 
         <main id="main-content">
-            <!-- Library View -->
             <div id="songs-view" class="view active-view">
                 <div id="search-bar" class="search-bar" style="display: none;">
                     <input type="text" id="search-input" placeholder="Search tracks..." autocomplete="off">
@@ -135,7 +132,6 @@
                 <div id="song-list" class="song-list"></div>
             </div>
 
-            <!-- Playlists View -->
             <div id="playlists-view" class="view">
                 <div id="playlists-home">
                     <div class="playlist-view-header">
@@ -149,7 +145,6 @@
                         </button>
                     </div>
                     <div id="playlists-container" class="playlist-cards">
-                        <!-- Dynamic Playlists injected here -->
                     </div>
                 </div>
                 <div id="playlist-detail" style="display: none;">
@@ -169,7 +164,6 @@
                 </div>
             </div>
 
-            <!-- Adjustments View -->
             <div id="effects-panel" class="view">
                 <div class="fx-module">
                     <div class="fx-header">
@@ -208,6 +202,7 @@
                         </div>
                     </div>
                 </div>
+
                 <div class="fx-module">
                     <div class="fx-header">
                         <div class="fx-title">Clearity+</div>
@@ -224,7 +219,7 @@
                         </div>
                     </div>
                 </div>
-                <!-- 8D Audio Module Update -->
+
                 <div class="fx-module expandable">
                     <div class="fx-header">
                         <div class="fx-title">
@@ -264,8 +259,6 @@
                         </div>
                     </div>
                 </div>
-
-
 
                 <div class="fx-module expandable">
                     <div class="fx-header">
@@ -495,13 +488,13 @@
                     </div>
                     <div class="fx-body">
                         <div class="slider-group">
-                            <div class="slider-header"><span>Wet</span><span id="val-rev-wet">35%</span></div>
-                            <input type="range" id="sl-rev-wet" min="0" max="100" value="35">
+                            <div class="slider-header"><span>Wet</span><span id="val-rev-wet">45%</span></div>
+                            <input type="range" id="sl-rev-wet" min="0" max="100" value="45">
                         </div>
                         <div class="slider-group">
-                            <div class="slider-header"><span>Stereo width</span><span id="val-rev-stereo">100%</span>
+                            <div class="slider-header"><span>Stereo width</span><span id="val-rev-stereo">150%</span>
                             </div>
-                            <input type="range" id="sl-rev-stereo" min="0" max="200" value="100">
+                            <input type="range" id="sl-rev-stereo" min="0" max="200" value="150">
                         </div>
                         <div class="slider-group">
                             <div class="slider-header"><span>High freq damping</span><span id="val-rev-damp">25%</span>
@@ -520,6 +513,65 @@
                             <div class="slider-header"><span>Low freq cut</span><span id="val-rev-low">10 Hz</span>
                             </div>
                             <input type="range" id="sl-rev-low" min="10" max="1000" value="10">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fx-module expandable">
+                    <div class="fx-header">
+                        <div class="fx-title">
+                            Preamp
+                            <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </div>
+                        <div class="fx-controls">
+                            <button class="reset-btn" id="res-preamp" title="Reset Preamp">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                    <polyline points="3 3 3 8 8 8" />
+                                </svg>
+                            </button>
+                            <label class="switch"><input type="checkbox" id="tgl-preamp"><span
+                                    class="slider round"></span></label>
+                        </div>
+                    </div>
+                    <div class="fx-body">
+                        <div class="slider-group">
+                            <div class="slider-header"><span>Gain</span><span id="val-preamp-gain">0 dB</span></div>
+                            <input type="range" id="sl-preamp-gain" min="-12" max="12" value="0" step="0.5">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fx-module expandable">
+                    <div class="fx-header">
+                        <div class="fx-title">
+                            Balance
+                            <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </div>
+                        <div class="fx-controls">
+                            <button class="reset-btn" id="res-balance" title="Reset Balance">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                    <polyline points="3 3 3 8 8 8" />
+                                </svg>
+                            </button>
+                            <label class="switch"><input type="checkbox" id="tgl-balance"><span
+                                    class="slider round"></span></label>
+                        </div>
+                    </div>
+                    <div class="fx-body">
+                        <div class="slider-group">
+                            <div class="slider-header"><span>Pan (L/R)</span><span id="val-balance-pan">Center</span>
+                            </div>
+                            <input type="range" id="sl-balance-pan" min="-1" max="1" value="0" step="0.05">
                         </div>
                     </div>
                 </div>
@@ -691,10 +743,8 @@
         </footer>
     </div>
 
-    <!-- Toast notification container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- Custom Modal -->
     <div id="custom-modal-overlay" class="custom-modal-overlay hidden">
         <div class="custom-modal-card">
             <h3 id="custom-modal-title">Title</h3>

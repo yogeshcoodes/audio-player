@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     audio.preservesPitch = !vinylMode;
 
     let audioCtx, sourceNode, analyserNode;
-    const fx = { clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false };
+    const fx = { clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false, preamp: false, balance: false };
     let nodes = {};
 
     // ── TOAST SYSTEM ──
@@ -220,14 +220,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Export Format Selector
     const formatBtns = document.querySelectorAll('.format-btn');
-    const formatNote = $('format-note');
     const formatNotes = { 'wav': 'WAV — Lossless, universal', 'mp3': 'MP3 — Compressed', 'flac': 'FLAC — Lossless compressed' };
     formatBtns.forEach(btn => {
         btn.onclick = () => {
             formatBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             exportFormat = btn.dataset.format;
-            formatNote.textContent = formatNotes[exportFormat] || '';
         };
     });
 
@@ -261,9 +259,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const npOverlay = $('now-playing-overlay');
+        const overlayContent = document.querySelector('.np-overlay-content');
         if (npOverlay.classList.contains('open') && diffY > 60 && Math.abs(diffY) > Math.abs(diffX)) {
-            closeNowPlayingOverlay();
-            return;
+            if (!overlayContent || overlayContent.scrollTop <= 0) {
+                closeNowPlayingOverlay();
+                return;
+            }
         }
 
         if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
@@ -441,6 +442,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildEffectNodes(ctx) {
         nodes.masterGain = ctx.createGain();
         nodes.masterGain.gain.value = 0.95;
+
+        // Preamp
+        nodes.preampGain = ctx.createGain();
+        nodes.preampGain.gain.value = 1.0;
+
+        // Balance
+        nodes.balancePan = ctx.createStereoPanner();
+        nodes.balancePan.pan.value = 0;
 
         nodes.clrBassSmooth = ctx.createBiquadFilter();
         nodes.clrBassSmooth.type = 'lowshelf';
@@ -667,11 +676,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!audioCtx) return;
         sourceNode.disconnect();
         if (nodes.pitchOut) nodes.pitchOut.disconnect();
+        if (nodes.preampGain) nodes.preampGain.disconnect();
         if (nodes.clrAntiDistort) nodes.clrAntiDistort.disconnect();
         if (nodes.eq) nodes.eq[3].disconnect();
         if (nodes.vocMerge) nodes.vocMerge.disconnect();
         if (nodes.mono) nodes.mono.disconnect();
         if (nodes.invMerge) nodes.invMerge.disconnect();
+        if (nodes.balancePan) nodes.balancePan.disconnect();
         if (nodes.flangOut) nodes.flangOut.disconnect();
         if (nodes.echoOut) nodes.echoOut.disconnect();
         if (nodes.eightDOut) nodes.eightDOut.disconnect();
@@ -681,9 +692,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let curr = sourceNode;
         const pitchVal = vinylMode ? 0 : parseFloat($('sl-pitch').value);
+
         if (pitchVal !== 0) {
             curr.connect(nodes.pitchIn);
             curr = nodes.pitchOut;
+        }
+        if (fx.preamp) {
+            curr.connect(nodes.preampGain);
+            curr = nodes.preampGain;
         }
         if (fx.clarity) {
             curr.connect(nodes.clrBassSmooth);
@@ -704,6 +720,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fx.invert) {
             curr.connect(nodes.invSplit);
             curr = nodes.invMerge;
+        }
+        if (fx.balance) {
+            curr.connect(nodes.balancePan);
+            curr = nodes.balancePan;
         }
         if (fx.flanger) {
             curr.connect(nodes.flangIn);
@@ -870,10 +890,21 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.flangFb.gain.value = parseFloat($('sl-flang-fb').value) / 100;
     }
 
+    function updatePreampParams() {
+        if (!audioCtx) return;
+        const db = parseFloat($('sl-preamp-gain').value);
+        nodes.preampGain.gain.value = Math.pow(10, db / 20);
+    }
+
+    function updateBalanceParams() {
+        if (!audioCtx) return;
+        nodes.balancePan.pan.value = parseFloat($('sl-balance-pan').value);
+    }
+
     const toggleMap = {
         'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp',
         'tgl-limit': 'limit', 'tgl-echo': 'echo', 'tgl-flanger': 'flanger', 'tgl-reverb': 'reverb', 'tgl-mono': 'mono',
-        'tgl-invert': 'invert', 'tgl-8d': 'eightD'
+        'tgl-invert': 'invert', 'tgl-8d': 'eightD', 'tgl-preamp': 'preamp', 'tgl-balance': 'balance'
     };
     Object.keys(toggleMap).forEach(id => {
         $(id).onchange = e => {
@@ -971,10 +1002,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $('res-reverb').onclick = () => {
         $('tgl-reverb').checked = false;
         fx.reverb = false;
-        $('sl-rev-wet').value = 35;
-        $('val-rev-wet').textContent = '35%';
-        $('sl-rev-stereo').value = 100;
-        $('val-rev-stereo').textContent = '100%';
+        $('sl-rev-wet').value = 45;
+        $('val-rev-wet').textContent = '45%';
+        $('sl-rev-stereo').value = 150;
+        $('val-rev-stereo').textContent = '150%';
         $('sl-rev-damp').value = 25;
         $('val-rev-damp').textContent = '25%';
         $('sl-rev-room').value = 75;
@@ -997,6 +1028,22 @@ document.addEventListener('DOMContentLoaded', () => {
         $('sl-8d-rev').value = 40;
         $('val-8d-rev').textContent = '40%';
         updateEightDParams();
+        routeAudio();
+    };
+    $('res-preamp').onclick = () => {
+        $('tgl-preamp').checked = false;
+        fx.preamp = false;
+        $('sl-preamp-gain').value = 0;
+        $('val-preamp-gain').textContent = '0 dB';
+        updatePreampParams();
+        routeAudio();
+    };
+    $('res-balance').onclick = () => {
+        $('tgl-balance').checked = false;
+        fx.balance = false;
+        $('sl-balance-pan').value = 0;
+        $('val-balance-pan').textContent = 'Center';
+        updateBalanceParams();
         routeAudio();
     };
 
@@ -1058,6 +1105,16 @@ document.addEventListener('DOMContentLoaded', () => {
     bindSlider('sl-8d-speed', 'val-8d-speed', ' Hz', updateEightDParams);
     bindSlider('sl-8d-width', 'val-8d-width', '%', updateEightDParams);
     bindSlider('sl-8d-rev', 'val-8d-rev', '%', updateEightDParams);
+    bindSlider('sl-preamp-gain', 'val-preamp-gain', ' dB', updatePreampParams);
+
+    $('sl-balance-pan').oninput = e => {
+        const val = parseFloat(e.target.value);
+        let text = 'Center';
+        if (val < 0) text = 'L ' + Math.abs(Math.round(val * 100)) + '%';
+        else if (val > 0) text = 'R ' + Math.abs(Math.round(val * 100)) + '%';
+        $('val-balance-pan').textContent = text;
+        updateBalanceParams();
+    };
 
     // ── PLAYLIST MANAGEMENT ──
     function createPlaylist(name) {
@@ -1171,13 +1228,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     searchBar.style.display = 'block';
                     emptyState.style.display = 'none';
                     sortAndRenderTracks();
+                    extractAlbumArts();
                     return;
                 }
             }
         } catch (e) {
             console.log("Directory scraping unavailable. Falling back to predefined injection.");
         }
-        trackList = [1, 2, 3, 4, 5, 6, 7, 8].map(i => ({
+        // Fallback matched exactly to 5 sample tracks
+        trackList = [1, 2, 3, 4, 5].map(i => ({
             id: 'trk_' + Date.now() + i,
             title: `sample-${i}`,
             artist: 'Assets Directory',
@@ -1196,6 +1255,7 @@ document.addEventListener('DOMContentLoaded', () => {
         searchBar.style.display = 'block';
         emptyState.style.display = 'none';
         sortAndRenderTracks();
+        extractAlbumArts();
     }
     loadDefaultAssets();
 
@@ -1265,12 +1325,24 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelDrawer();
     };
 
-    async function extractAlbumArts() { for (const track of trackList) await extractAlbumArtForTrack(track); }
+    async function extractAlbumArts() {
+        for (const track of trackList) await extractAlbumArtForTrack(track);
+    }
 
     async function extractAlbumArtForTrack(track) {
-        if (!track.file) return;
+        if (track.albumArt) return;
         try {
-            const buffer = await track.file.arrayBuffer();
+            let buffer;
+            if (track.file) {
+                buffer = await track.file.arrayBuffer();
+            } else if (track.url) {
+                const resp = await fetch(track.url);
+                if (!resp.ok) return;
+                buffer = await resp.arrayBuffer();
+            } else {
+                return;
+            }
+
             const view = new DataView(buffer);
             let offset = 0;
             if (view.getUint32(0) === 0x49443303 || view.getUint32(0) === 0x49443302) {
@@ -1278,25 +1350,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 offset = 10;
                 const end = offset + size;
                 while (offset < end - 10) {
-                    const frameId = String.fromCharCode(view.getUint8(offset), view.getUint8(offset + 1), view
-                        .getUint8(offset + 2), view.getUint8(offset + 3));
+                    const frameId = String.fromCharCode(view.getUint8(offset), view.getUint8(offset + 1), view.getUint8(offset + 2), view.getUint8(offset + 3));
                     const frameSize = view.getUint32(offset + 4);
                     if (frameId === 'APIC') {
-                        const headerEnd = offset + 8;
-                        let imgStart = headerEnd;
-                        while (imgStart < headerEnd + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
+                        let imgStart = offset + 10;
+                        while (imgStart < offset + 10 + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
                         imgStart++;
                         imgStart++;
-                        while (imgStart < headerEnd + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
+                        while (imgStart < offset + 10 + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
                         imgStart++;
-                        const imgData = new Uint8Array(buffer.slice(imgStart, headerEnd + frameSize));
-                        track.albumArt = URL.createObjectURL(new Blob([imgData]));
+
+                        if (imgStart < offset + 10 + frameSize) {
+                            const imgData = new Uint8Array(buffer.slice(imgStart, offset + 10 + frameSize));
+                            track.albumArt = URL.createObjectURL(new Blob([imgData]));
+
+                            if (track.element) {
+                                const coverDiv = track.element.querySelector('.song-cover');
+                                if (coverDiv) {
+                                    const playingInd = coverDiv.querySelector('.playing-indicator');
+                                    coverDiv.innerHTML = `<img src="${track.albumArt}" style="width:100%; height:100%; object-fit:cover;">`;
+                                    if (playingInd) coverDiv.appendChild(playingInd);
+                                }
+                            }
+                            if (currentTrackIndex >= 0 && trackList[currentTrackIndex].id === track.id) {
+                                updateNowPlayingOverlay();
+                            }
+                        }
                         return;
                     }
                     offset += 10 + frameSize;
                 }
             }
-        } catch (e) { }
+        } catch (e) {
+            console.warn('ID3 Parse Error:', e);
+        }
     }
 
     function synchSafeToInt(val) {
