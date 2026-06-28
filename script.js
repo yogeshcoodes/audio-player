@@ -35,12 +35,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPlaying = false;
     let shuffleMode = false;
     let repeatMode = 'off';
-    let exportFormat = 'wav';
+    let exportFormat = 'mp3'; // Changed default to MP3
     let currentSort = 'name-asc';
 
     // Playlists State
     let customPlaylists = [];
     let activePlaylistId = null;
+
+    // Scrolling & Virtualization State
+    let currentDisplayList = [];
+    let currentlyRendered = 0;
+    const RENDER_CHUNK = 50;
 
     // ── NATIVE AUDIO ENGINE ──
     const audio = new Audio();
@@ -50,6 +55,41 @@ document.addEventListener('DOMContentLoaded', () => {
     let audioCtx, sourceNode, analyserNode;
     const fx = { clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false, preamp: false, balance: false };
     let nodes = {};
+
+    // Apply default format styling
+    document.querySelectorAll('.format-btn').forEach(b => {
+        b.classList.remove('active');
+        if (b.dataset.format === 'mp3') b.classList.add('active');
+    });
+
+    // ── INDEXED DB FOR FOLDER PERSISTENCE ──
+    const dbName = 'AudioPlayerDB';
+    function initDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(dbName, 1);
+            req.onupgradeneeded = e => e.target.result.createObjectStore('handles');
+            req.onsuccess = e => resolve(e.target.result);
+            req.onerror = e => reject(e);
+        });
+    }
+    async function saveHandle(handle) {
+        try {
+            const db = await initDB();
+            const tx = db.transaction('handles', 'readwrite');
+            tx.objectStore('handles').put(handle, 'folderHandle');
+        } catch (e) { console.warn("IDB Save Error", e); }
+    }
+    async function getHandle() {
+        try {
+            const db = await initDB();
+            return new Promise(resolve => {
+                const tx = db.transaction('handles', 'readonly');
+                const req = tx.objectStore('handles').get('folderHandle');
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(null);
+            });
+        } catch (e) { return null; }
+    }
 
     // ── TOAST SYSTEM ──
     function showToast(message, type = '') {
@@ -220,7 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Export Format Selector
     const formatBtns = document.querySelectorAll('.format-btn');
-    const formatNotes = { 'wav': 'WAV — Lossless, universal', 'mp3': 'MP3 — Compressed', 'flac': 'FLAC — Lossless compressed' };
     formatBtns.forEach(btn => {
         btn.onclick = () => {
             formatBtns.forEach(b => b.classList.remove('active'));
@@ -440,8 +479,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function buildEffectNodes(ctx) {
+        // High Headroom to prevent clipping when summing EQ gains
         nodes.masterGain = ctx.createGain();
-        nodes.masterGain.gain.value = 0.95;
+        nodes.masterGain.gain.value = 0.65; 
+
+        // Brickwall Limiter to finalize and prevent distortion safely
+        nodes.masterLimiter = ctx.createDynamicsCompressor();
+        nodes.masterLimiter.threshold.value = -0.5;
+        nodes.masterLimiter.knee.value = 0.0;
+        nodes.masterLimiter.ratio.value = 20.0;
+        nodes.masterLimiter.attack.value = 0.002;
+        nodes.masterLimiter.release.value = 0.100;
 
         // Preamp
         nodes.preampGain = ctx.createGain();
@@ -489,9 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         buildPitchShifter(ctx);
 
-        nodes.eq = [ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx
-            .createBiquadFilter()
-        ];
+        nodes.eq = [ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter()];
         nodes.eq[0].type = 'lowshelf';
         nodes.eq[0].frequency.value = 100;
         nodes.eq[1].type = 'peaking';
@@ -692,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let curr = sourceNode;
         const pitchVal = vinylMode ? 0 : parseFloat($('sl-pitch').value);
-
+        
         if (pitchVal !== 0) {
             curr.connect(nodes.pitchIn);
             curr = nodes.pitchOut;
@@ -750,50 +796,26 @@ document.addEventListener('DOMContentLoaded', () => {
             curr = nodes.limit;
         }
 
+        // Output routing matching to prevent clipping
         curr.connect(analyserNode);
         analyserNode.connect(nodes.masterGain);
-        nodes.masterGain.connect(audioCtx.destination);
+        nodes.masterGain.connect(nodes.masterLimiter);
+        nodes.masterLimiter.connect(audioCtx.destination);
     }
 
     function createStereoWidthNode(ctx) {
         const split = ctx.createChannelSplitter(2),
             merge = ctx.createChannelMerger(2);
-        const lMid = ctx.createGain(),
-            rMid = ctx.createGain(),
-            midSum = ctx.createGain();
-        const lSide = ctx.createGain(),
-            rSide = ctx.createGain(),
-            sideSum = ctx.createGain();
-        const midL = ctx.createGain(),
-            midR = ctx.createGain(),
-            sideL = ctx.createGain(),
-            sideR = ctx.createGain();
-        lMid.gain.value = 0.5;
-        rMid.gain.value = 0.5;
-        midSum.gain.value = 1;
-        lSide.gain.value = 0.5;
-        rSide.gain.value = -0.5;
-        sideSum.gain.value = 1;
-        midL.gain.value = 1;
-        midR.gain.value = 1;
-        sideL.gain.value = 1;
-        sideR.gain.value = -1;
-        split.connect(lMid, 0);
-        split.connect(lSide, 0);
-        split.connect(rMid, 1);
-        split.connect(rSide, 1);
-        lMid.connect(midSum);
-        rMid.connect(midSum);
-        lSide.connect(sideSum);
-        rSide.connect(sideSum);
-        midSum.connect(midL);
-        midSum.connect(midR);
-        sideSum.connect(sideL);
-        sideSum.connect(sideR);
-        midL.connect(merge, 0, 0);
-        sideL.connect(merge, 0, 0);
-        midR.connect(merge, 0, 1);
-        sideR.connect(merge, 0, 1);
+        const lMid = ctx.createGain(), rMid = ctx.createGain(), midSum = ctx.createGain();
+        const lSide = ctx.createGain(), rSide = ctx.createGain(), sideSum = ctx.createGain();
+        const midL = ctx.createGain(), midR = ctx.createGain(), sideL = ctx.createGain(), sideR = ctx.createGain();
+        lMid.gain.value = 0.5; rMid.gain.value = 0.5; midSum.gain.value = 1;
+        lSide.gain.value = 0.5; rSide.gain.value = -0.5; sideSum.gain.value = 1;
+        midL.gain.value = 1; midR.gain.value = 1; sideL.gain.value = 1; sideR.gain.value = -1;
+        split.connect(lMid, 0); split.connect(lSide, 0); split.connect(rMid, 1); split.connect(rSide, 1);
+        lMid.connect(midSum); rMid.connect(midSum); lSide.connect(sideSum); rSide.connect(sideSum);
+        midSum.connect(midL); midSum.connect(midR); sideSum.connect(sideL); sideSum.connect(sideR);
+        midL.connect(merge, 0, 0); sideL.connect(merge, 0, 0); midR.connect(merge, 0, 1); sideR.connect(merge, 0, 1);
         return {
             input: split, output: merge, setWidth: w => {
                 sideL.gain.value = w;
@@ -1059,10 +1081,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     ['low', 'lmid', 'hmid', 'high'].forEach((b, i) => {
         $(`sl-eq-${b}`).oninput = (e) => {
-            $('eq-preset').value =
-                'custom';
-            $(`val-eq-${b}`).textContent = (e.target.value > 0 ? '+' : '') + e.target.value + ' dB'; if (audioCtx)
-                nodes.eq[i].gain.value = e.target.value;
+            $('eq-preset').value = 'custom';
+            $(`val-eq-${b}`).textContent = (e.target.value > 0 ? '+' : '') + e.target.value + ' dB'; 
+            if (audioCtx) nodes.eq[i].gain.value = e.target.value;
         };
     });
 
@@ -1199,7 +1220,29 @@ document.addEventListener('DOMContentLoaded', () => {
         sortAndRenderTracks();
     }
 
-    // ── DYNAMIC ASSET LOADING ──
+    // ── DYNAMIC ASSET LOADING & PERSISTENCE ──
+    async function checkPersistedFolder() {
+        if (window.showDirectoryPicker) {
+            const handle = await getHandle();
+            if (handle) {
+                const btn = document.createElement('button');
+                btn.className = 'drawer-btn';
+                btn.style.marginTop = '15px';
+                btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Restore Previous Folder`;
+                btn.onclick = async () => {
+                    try {
+                        const perm = await handle.requestPermission({ mode: 'read' });
+                        if (perm === 'granted') {
+                            btn.remove();
+                            await loadTracksFromHandle(handle);
+                        }
+                    } catch(e) { console.error(e); }
+                };
+                $('empty-state').appendChild(btn);
+            }
+        }
+    }
+
     async function loadDefaultAssets() {
         try {
             const response = await fetch('assets/');
@@ -1221,6 +1264,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         dateAdded: Date.now(),
                         dateModified: Date.now(),
                         albumArt: null,
+                        _isExtracting: false,
                         lyrics: null,
                         isFavorite: false,
                         folderName: 'Default'
@@ -1228,14 +1272,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     searchBar.style.display = 'block';
                     emptyState.style.display = 'none';
                     sortAndRenderTracks();
-                    extractAlbumArts();
+                    checkPersistedFolder();
                     return;
                 }
             }
         } catch (e) {
             console.log("Directory scraping unavailable. Falling back to predefined injection.");
         }
-        // Fallback matched exactly to 5 sample tracks
         trackList = [1, 2, 3, 4, 5].map(i => ({
             id: 'trk_' + Date.now() + i,
             title: `sample-${i}`,
@@ -1248,6 +1291,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dateAdded: Date.now(),
             dateModified: Date.now(),
             albumArt: null,
+            _isExtracting: false,
             lyrics: null,
             isFavorite: false,
             folderName: 'Default Assets'
@@ -1255,12 +1299,55 @@ document.addEventListener('DOMContentLoaded', () => {
         searchBar.style.display = 'block';
         emptyState.style.display = 'none';
         sortAndRenderTracks();
-        extractAlbumArts();
+        checkPersistedFolder();
     }
     loadDefaultAssets();
 
-    $('btn-open-folder').onclick = () => $('folder-input').click();
+    $('btn-open-folder').onclick = async () => {
+        if (window.showDirectoryPicker) {
+            try {
+                const handle = await window.showDirectoryPicker({ mode: 'read' });
+                await saveHandle(handle);
+                await loadTracksFromHandle(handle);
+            } catch (e) {
+                if (e.name !== 'AbortError') $('folder-input').click(); // fallback
+            }
+        } else {
+            $('folder-input').click();
+        }
+    };
+
     $('btn-open-file').onclick = () => $('file-input').click();
+
+    async function loadTracksFromHandle(dirHandle) {
+        cancelDrawer();
+        showToast('Loading folder...', '');
+        const files = [];
+        async function traverse(handle, path = '') {
+            for await (const entry of handle.values()) {
+                if (entry.kind === 'file' && entry.name.match(/\.(mp3|wav|ogg|m4a|flac)$/i)) {
+                    const file = await entry.getFile();
+                    Object.defineProperty(file, 'webkitRelativePath', {
+                        value: path + entry.name,
+                        writable: false
+                    });
+                    files.push(file);
+                } else if (entry.kind === 'directory') {
+                    await traverse(entry, path + entry.name + '/');
+                }
+            }
+        }
+        try {
+            await traverse(dirHandle, dirHandle.name + '/');
+            if (!files.length) {
+                showToast('No audio files found.', 'error');
+                return;
+            }
+            processNewFiles(files, dirHandle.name);
+        } catch(e) {
+            showToast('Permission denied or error reading folder', 'error');
+        }
+    }
 
     $('folder-input').onchange = e => {
         const files = Array.from(e.target.files).filter(f => f.type.startsWith('audio/'));
@@ -1268,29 +1355,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('No audio files found.', 'error');
             return;
         }
-        const now = Date.now();
-        const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Local Folder';
-        const newTracks = files.map((file, i) => ({
-            id: 'trk_' + Math.random().toString(36).substr(2, 9),
-            title: file.name.replace(/\.[^/.]+$/, ''),
-            artist: 'Local File',
-            url: URL.createObjectURL(file),
-            file: file,
-            duration: 0,
-            index: trackList.length + i,
-            element: null,
-            dateAdded: now,
-            dateModified: file.lastModified || now,
-            albumArt: null,
-            lyrics: null,
-            isFavorite: false,
-            folderName: folderName
-        }));
-        trackList = trackList.concat(newTracks);
-        searchBar.style.display = 'block';
-        emptyState.style.display = 'none';
-        extractAlbumArts();
-        sortAndRenderTracks();
+        processNewFiles(files, files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Local Folder');
         cancelDrawer();
     };
 
@@ -1300,46 +1365,57 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Please select an audio file.', 'error');
             return;
         }
-        const now = Date.now();
-        const newTrack = {
-            id: 'trk_' + Math.random().toString(36).substr(2, 9),
-            title: file.name.replace(/\.[^/.]+$/, ''),
-            artist: 'Local File',
-            url: URL.createObjectURL(file),
-            file: file,
-            duration: 0,
-            index: trackList.length,
-            element: null,
-            dateAdded: now,
-            dateModified: file.lastModified || now,
-            albumArt: null,
-            lyrics: null,
-            isFavorite: false,
-            folderName: null
-        };
-        trackList.push(newTrack);
-        searchBar.style.display = 'block';
-        emptyState.style.display = 'none';
-        extractAlbumArtForTrack(newTrack);
-        sortAndRenderTracks();
+        processNewFiles([file], 'Local File');
         cancelDrawer();
     };
 
-    async function extractAlbumArts() {
-        for (const track of trackList) await extractAlbumArtForTrack(track);
+    function processNewFiles(files, defaultFolderName) {
+        const now = Date.now();
+        const newTracks = files.map((file, i) => {
+            const folderPathParts = file.webkitRelativePath ? file.webkitRelativePath.split('/') : [];
+            const folderName = folderPathParts.length > 1 ? folderPathParts[0] : (defaultFolderName || 'Local Folder');
+            return {
+                id: 'trk_' + Math.random().toString(36).substr(2, 9),
+                title: file.name.replace(/\.[^/.]+$/, ''),
+                artist: 'Local File',
+                url: URL.createObjectURL(file),
+                file: file,
+                duration: 0,
+                index: trackList.length + i,
+                element: null,
+                dateAdded: now,
+                dateModified: file.lastModified || now,
+                albumArt: null,
+                _isExtracting: false,
+                lyrics: null,
+                isFavorite: false,
+                folderName: folderName
+            };
+        });
+        trackList = trackList.concat(newTracks);
+        searchBar.style.display = 'block';
+        emptyState.style.display = 'none';
+        sortAndRenderTracks();
     }
 
     async function extractAlbumArtForTrack(track) {
-        if (track.albumArt) return;
+        if (track.albumArt !== null || track._isExtracting) return;
+        track._isExtracting = true;
         try {
             let buffer;
             if (track.file) {
                 buffer = await track.file.arrayBuffer();
             } else if (track.url) {
                 const resp = await fetch(track.url);
-                if (!resp.ok) return;
+                if (!resp.ok) {
+                    track.albumArt = false;
+                    track._isExtracting = false;
+                    return;
+                }
                 buffer = await resp.arrayBuffer();
             } else {
+                track.albumArt = false;
+                track._isExtracting = false;
                 return;
             }
 
@@ -1355,15 +1431,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (frameId === 'APIC') {
                         let imgStart = offset + 10;
                         while (imgStart < offset + 10 + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
-                        imgStart++;
-                        imgStart++;
+                        imgStart++; imgStart++; 
                         while (imgStart < offset + 10 + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
-                        imgStart++;
-
+                        imgStart++; 
+                        
                         if (imgStart < offset + 10 + frameSize) {
                             const imgData = new Uint8Array(buffer.slice(imgStart, offset + 10 + frameSize));
                             track.albumArt = URL.createObjectURL(new Blob([imgData]));
-
+                            
                             if (track.element) {
                                 const coverDiv = track.element.querySelector('.song-cover');
                                 if (coverDiv) {
@@ -1376,14 +1451,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 updateNowPlayingOverlay();
                             }
                         }
+                        track._isExtracting = false;
                         return;
                     }
                     offset += 10 + frameSize;
                 }
             }
+            track.albumArt = false;
         } catch (e) {
-            console.warn('ID3 Parse Error:', e);
+            track.albumArt = false;
         }
+        track._isExtracting = false;
     }
 
     function synchSafeToInt(val) {
@@ -1433,10 +1511,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (pl) displayList = trackList.filter(t => pl.trackIds.includes(t.id));
         }
 
+        currentDisplayList = displayList;
+        currentlyRendered = 0;
+
         const targetContainer = activePlaylistId ? playlistSongList : songListContainer;
         targetContainer.innerHTML = '';
+        renderMoreTracks();
+    }
 
-        displayList.forEach((track) => {
+    function renderMoreTracks() {
+        const targetContainer = activePlaylistId ? playlistSongList : songListContainer;
+        const fragment = document.createDocumentFragment();
+        const end = Math.min(currentlyRendered + RENDER_CHUNK, currentDisplayList.length);
+
+        for (let i = currentlyRendered; i < end; i++) {
+            const track = currentDisplayList[i];
             const idx = trackList.indexOf(track);
             const item = document.createElement('div');
             item.className = 'song-item';
@@ -1476,17 +1565,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
-            targetContainer.appendChild(item);
+            fragment.appendChild(item);
             track.element = item;
 
-            const temp = new Audio(track.url);
-            temp.onloadedmetadata = () => {
-                track.duration = temp.duration;
-                const durEl = item.querySelector('.song-duration');
-                if (durEl) durEl.textContent = formatTime(track.duration);
-            };
-        });
+            if (!track.duration) {
+                const temp = new Audio(track.url);
+                temp.onloadedmetadata = () => {
+                    track.duration = temp.duration;
+                    const durEl = item.querySelector('.song-duration');
+                    if (durEl) durEl.textContent = formatTime(track.duration);
+                };
+            }
+
+            // Extract album art lazily
+            if (track.albumArt === null && !track._isExtracting) {
+                extractAlbumArtForTrack(track);
+            }
+        }
+        targetContainer.appendChild(fragment);
+        currentlyRendered = end;
     }
+
+    $('main-content').addEventListener('scroll', function() {
+        if (this.scrollHeight - this.scrollTop - this.clientHeight < 400) {
+            if (currentlyRendered < currentDisplayList.length) {
+                renderMoreTracks();
+            }
+        }
+    });
 
     function escapeHtml(t) {
         return t.replace(/[&<>"']/g, m => ({
@@ -1528,7 +1634,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pauseIcons = document.querySelectorAll('.pause-icon, .np-pause-icon');
         playIcons.forEach(icon => icon.style.display = p ? 'none' : 'block');
         pauseIcons.forEach(icon => icon.style.display = p ? 'block' : 'none');
-        if (currentTrackIndex >= 0 && trackList[currentTrackIndex].element) {
+        if (currentTrackIndex >= 0 && trackList[currentTrackIndex] && trackList[currentTrackIndex].element) {
             const ind = trackList[currentTrackIndex].element.querySelector('.playing-indicator');
             if (ind) ind.innerHTML = p ? playIndicatorSvg : pausedIndicatorSvg;
         }
@@ -1669,6 +1775,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let curr = src;
 
+            if (fx.preamp) {
+                const oPre = offCtx.createGain();
+                oPre.gain.value = nodes.preampGain.gain.value;
+                curr.connect(oPre);
+                curr = oPre;
+            }
+
             if (fx.clarity) {
                 const oBass = offCtx.createBiquadFilter();
                 oBass.type = 'lowshelf';
@@ -1709,7 +1822,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 curr.connect(oPanner);
                 const revGain = offCtx.createGain();
                 const mix = parseFloat($('sl-8d-rev').value) / 100;
-                if (nodes.revConvolver.buffer) {
+                if (nodes.revConvolver && nodes.revConvolver.buffer) {
                     const oConv = offCtx.createConvolver();
                     oConv.buffer = nodes.revConvolver.buffer;
                     oPanner.connect(oConv);
@@ -1724,7 +1837,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 curr = eightDRoot;
             }
 
-            if (fx.reverb && nodes.revConvolver.buffer) {
+            if (fx.reverb && nodes.revConvolver && nodes.revConvolver.buffer) {
                 const oConv = offCtx.createConvolver();
                 oConv.buffer = nodes.revConvolver.buffer;
                 const oDry = offCtx.createGain();
@@ -1736,7 +1849,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 oConv.connect(oWet);
                 oDry.connect(offCtx.destination);
                 oWet.connect(offCtx.destination);
-            } else { curr.connect(offCtx.destination); }
+            } else { 
+                // Export Limiter matches the UI to prevent export distortion
+                const oMasterLimiter = offCtx.createDynamicsCompressor();
+                oMasterLimiter.threshold.value = -0.5;
+                oMasterLimiter.ratio.value = 20.0;
+                oMasterLimiter.attack.value = 0.002;
+                oMasterLimiter.release.value = 0.100;
+
+                const oMasterGain = offCtx.createGain();
+                oMasterGain.gain.value = 0.65;
+                
+                curr.connect(oMasterGain);
+                oMasterGain.connect(oMasterLimiter);
+                oMasterLimiter.connect(offCtx.destination); 
+            }
 
             src.start(0);
             const rendered = await offCtx.startRendering();
