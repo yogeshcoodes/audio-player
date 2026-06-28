@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>High-Fidelity Audio Engine</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -82,6 +83,8 @@
                     <span id="format-note" style="font-size:0.75rem;color:var(--text-muted);">WAV — Lossless,
                         universal</span>
                 </div>
+                <!-- Spacer for drawer bottom -->
+                <div style="height: 40px; flex-shrink: 0;"></div>
             </div>
         </div>
 
@@ -208,7 +211,11 @@
                         <div class="fx-title">Clearity+</div>
                         <div class="fx-controls">
                             <button class="reset-btn" id="res-clarity" title="Reset Clearity+">
-                                
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                    <polyline points="3 3 3 8 8 8" />
+                                </svg>
                             </button>
                             <label class="switch"><input type="checkbox" id="tgl-clarity"><span
                                     class="slider round"></span></label>
@@ -681,6 +688,25 @@
             </div>
         </footer>
     </div>
+
+    <!-- Toast notification container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Custom Modal -->
+    <div id="custom-modal-overlay" class="custom-modal-overlay hidden">
+        <div class="custom-modal-card">
+            <h3 id="custom-modal-title">Title</h3>
+            <p id="custom-modal-message" style="display:none;"></p>
+            <input type="text" id="custom-modal-input" class="drawer-select" placeholder="Enter name..."
+                style="display:none;">
+            <div class="custom-modal-buttons">
+                <button id="custom-modal-cancel" class="drawer-btn"
+                    style="background:var(--bg-hover);color:var(--text-main);">Cancel</button>
+                <button id="custom-modal-confirm" class="drawer-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 

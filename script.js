@@ -26,21 +26,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // SVG Icons
     const outlineHeart = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
     const filledHeart = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
-    const playIndicatorSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`; // Pause icon implies it's currently playing
-    const pausedIndicatorSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`; // Play icon implies it's paused
+    const playIndicatorSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+    const pausedIndicatorSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
 
     // System States
     let trackList = [];
     let currentTrackIndex = -1;
     let isPlaying = false;
     let shuffleMode = false;
-    let repeatMode = 'off'; // 'off', 'all', 'one'
+    let repeatMode = 'off';
     let exportFormat = 'wav';
     let currentSort = 'name-asc';
 
     // Playlists State
     let customPlaylists = [];
-    let activePlaylistId = null; // null = library view
+    let activePlaylistId = null;
 
     // ── NATIVE AUDIO ENGINE ──
     const audio = new Audio();
@@ -50,6 +50,96 @@ document.addEventListener('DOMContentLoaded', () => {
     let audioCtx, sourceNode, analyserNode;
     const fx = { clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false };
     let nodes = {};
+
+    // ── TOAST SYSTEM ──
+    function showToast(message, type = '') {
+        const container = $('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'toast' + (type ? ' ' + type : '');
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 3000);
+    }
+
+    // ── CUSTOM MODAL SYSTEM ──
+    let modalResolve = null;
+
+    function showModal(title, options = {}) {
+        return new Promise((resolve) => {
+            modalResolve = resolve;
+            const overlay = $('custom-modal-overlay');
+            const titleEl = $('custom-modal-title');
+            const messageEl = $('custom-modal-message');
+            const inputEl = $('custom-modal-input');
+            const cancelBtn = $('custom-modal-cancel');
+            const confirmBtn = $('custom-modal-confirm');
+
+            titleEl.textContent = title;
+
+            if (options.message) {
+                messageEl.textContent = options.message;
+                messageEl.style.display = 'block';
+            } else {
+                messageEl.style.display = 'none';
+            }
+
+            if (options.showInput) {
+                inputEl.style.display = 'block';
+                inputEl.value = options.defaultValue || '';
+                inputEl.focus();
+            } else {
+                inputEl.style.display = 'none';
+            }
+
+            confirmBtn.textContent = options.confirmText || 'OK';
+            cancelBtn.style.display = options.showCancel !== false ? 'flex' : 'none';
+
+            overlay.classList.remove('hidden');
+
+            const cleanup = () => {
+                overlay.classList.add('hidden');
+                cancelBtn.onclick = null;
+                confirmBtn.onclick = null;
+                inputEl.onkeydown = null;
+            };
+
+            cancelBtn.onclick = () => {
+                cleanup();
+                resolve(options.showInput ? null : false);
+            };
+
+            confirmBtn.onclick = () => {
+                const value = options.showInput ? inputEl.value.trim() : true;
+                cleanup();
+                resolve(value);
+            };
+
+            inputEl.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    const value = options.showInput ? inputEl.value.trim() : true;
+                    cleanup();
+                    resolve(value);
+                }
+            };
+
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    cleanup();
+                    resolve(options.showInput ? null : false);
+                }
+            };
+        });
+    }
+
+    function showPrompt(title, defaultValue = '') {
+        return showModal(title, { showInput: true, defaultValue: defaultValue, showCancel: true });
+    }
+
+    function showConfirm(title, message) {
+        return showModal(title, { message: message, showInput: false, showCancel: true, confirmText: 'Delete' });
+    }
 
     // ── MATERIAL YOU COLOR INFRASTRUCTURE ──
     const colorPalette = ['#6BA661', '#601515', '#A67A19', '#949494', '#325788', '#BEB5AB', '#CB1E1E', '#34806D', '#333333', '#57612C'];
@@ -142,10 +232,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Swipe Gestures
-    let touchStartX = 0, touchStartY = 0, swipeFromFooter = false;
+    let touchStartX = 0,
+        touchStartY = 0,
+        swipeFromFooter = false;
     document.addEventListener('touchstart', e => {
         if (e.target.closest('input[type="range"]') || e.target.closest('.switch') || e.target.closest('textarea')) {
-            window.preventSwipe = true; return;
+            window.preventSwipe = true;
+            return;
         }
         window.preventSwipe = false;
         touchStartX = e.changedTouches[0].screenX;
@@ -168,20 +261,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const npOverlay = $('now-playing-overlay');
-        if (npOverlay.classList.contains('open') && diffY > 60 && Math.abs(diffY) > Math.abs(diffX)) { closeNowPlayingOverlay(); return; }
+        if (npOverlay.classList.contains('open') && diffY > 60 && Math.abs(diffY) > Math.abs(diffX)) {
+            closeNowPlayingOverlay();
+            return;
+        }
 
         if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
             const isDrawerOpen = $('drawer').classList.contains('open');
             const activeTab = document.querySelector('.tabs button.active').dataset.view;
             if (diffX > 0) {
                 if (isDrawerOpen) return;
-                if (activeTab === 'effects-panel') document.querySelector('.tabs button[data-view="playlists-view"]').click();
-                else if (activeTab === 'playlists-view') document.querySelector('.tabs button[data-view="songs-view"]').click();
+                if (activeTab === 'effects-panel') document.querySelector('.tabs button[data-view="playlists-view"]')
+                    .click();
+                else if (activeTab === 'playlists-view') document.querySelector(
+                    '.tabs button[data-view="songs-view"]').click();
                 else if (activeTab === 'songs-view') $('btn-menu').click();
             } else {
                 if (isDrawerOpen) $('btn-close-drawer').click();
-                else if (activeTab === 'songs-view') document.querySelector('.tabs button[data-view="playlists-view"]').click();
-                else if (activeTab === 'playlists-view') document.querySelector('.tabs button[data-view="effects-panel"]').click();
+                else if (activeTab === 'songs-view') document.querySelector(
+                    '.tabs button[data-view="playlists-view"]').click();
+                else if (activeTab === 'playlists-view') document.querySelector(
+                    '.tabs button[data-view="effects-panel"]').click();
             }
         }
     }, { passive: true });
@@ -193,11 +293,13 @@ document.addEventListener('DOMContentLoaded', () => {
         overlay.classList.add('open');
         updateNowPlayingOverlay();
     }
+
     function closeNowPlayingOverlay() {
         const overlay = $('now-playing-overlay');
         overlay.classList.remove('open');
         setTimeout(() => overlay.classList.add('hidden'), 400);
     }
+
     function updateNowPlayingOverlay() {
         if (currentTrackIndex < 0 || !trackList[currentTrackIndex]) {
             $('np-title').textContent = 'No track selected';
@@ -224,7 +326,8 @@ document.addEventListener('DOMContentLoaded', () => {
             $('np-lyrics-display').style.display = 'block';
             $('np-lyrics-editor').style.display = 'none';
         } else {
-            $('np-lyrics-display').innerHTML = '<p class="lyrics-placeholder">No lyrics loaded. Tap the icon to load a .lrc file, or add lyrics below.</p>';
+            $('np-lyrics-display').innerHTML =
+                '<p class="lyrics-placeholder">No lyrics loaded. Tap the icon to load a .lrc file, or add lyrics below.</p>';
             $('np-lyrics-display').style.display = 'block';
             $('np-lyrics-editor').style.display = 'none';
         }
@@ -239,7 +342,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const reader = new FileReader();
         reader.onload = () => {
             let text = parseLRC(reader.result);
-            if (currentTrackIndex >= 0 && trackList[currentTrackIndex]) trackList[currentTrackIndex].lyrics = text;
+            if (currentTrackIndex >= 0 && trackList[currentTrackIndex]) trackList[currentTrackIndex].lyrics =
+                text;
             $('np-lyrics-display').textContent = text;
             $('np-lyrics-display').style.display = 'block';
             $('np-lyrics-editor').style.display = 'none';
@@ -247,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
         e.target.value = '';
     };
+
     function parseLRC(text) {
         return text.split('\n').map(line => {
             const match = line.match(/^\[\d{2}:\d{2}(?:\.\d{2,3})?\](.*)/);
@@ -264,7 +369,8 @@ document.addEventListener('DOMContentLoaded', () => {
             $('btn-edit-lyrics').textContent = 'Save Lyrics';
         } else {
             const newLyrics = editor.value.trim();
-            if (currentTrackIndex >= 0 && trackList[currentTrackIndex]) trackList[currentTrackIndex].lyrics = newLyrics;
+            if (currentTrackIndex >= 0 && trackList[currentTrackIndex]) trackList[currentTrackIndex].lyrics =
+                newLyrics;
             display.textContent = newLyrics || 'No lyrics loaded.';
             display.style.display = 'block';
             editor.style.display = 'none';
@@ -273,8 +379,14 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Sidebar & View
-    $('btn-menu').onclick = () => { $('drawer').classList.add('open'); $('drawer-overlay').classList.remove('hidden'); };
-    const cancelDrawer = () => { $('drawer').classList.remove('open'); $('drawer-overlay').classList.add('hidden'); };
+    $('btn-menu').onclick = () => {
+        $('drawer').classList.add('open');
+        $('drawer-overlay').classList.remove('hidden');
+    };
+    const cancelDrawer = () => {
+        $('drawer').classList.remove('open');
+        $('drawer-overlay').classList.add('hidden');
+    };
     $('btn-close-drawer').onclick = cancelDrawer;
     $('drawer-overlay').onclick = cancelDrawer;
 
@@ -285,7 +397,6 @@ document.addEventListener('DOMContentLoaded', () => {
             Object.values(views).forEach(v => v.classList.remove('active-view'));
             views[tab.dataset.view].classList.add('active-view');
 
-            // Re-render UI on tab switch
             if (tab.dataset.view === 'songs-view') {
                 activePlaylistId = null;
                 sortAndRenderTracks();
@@ -331,92 +442,151 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.masterGain = ctx.createGain();
         nodes.masterGain.gain.value = 0.95;
 
-        // Clearity+
-        nodes.clrBassSmooth = ctx.createBiquadFilter(); nodes.clrBassSmooth.type = 'lowshelf'; nodes.clrBassSmooth.frequency.value = 80; nodes.clrBassSmooth.gain.value = 2.0;
-        nodes.clrMudCut = ctx.createBiquadFilter(); nodes.clrMudCut.type = 'peaking'; nodes.clrMudCut.frequency.value = 220; nodes.clrMudCut.Q.value = 0.7; nodes.clrMudCut.gain.value = -2.0;
-        nodes.clrDetailBoost = ctx.createBiquadFilter(); nodes.clrDetailBoost.type = 'peaking'; nodes.clrDetailBoost.frequency.value = 3200; nodes.clrDetailBoost.Q.value = 0.6; nodes.clrDetailBoost.gain.value = 2.5;
-        nodes.clrAirShelf = ctx.createBiquadFilter(); nodes.clrAirShelf.type = 'highshelf'; nodes.clrAirShelf.frequency.value = 10000; nodes.clrAirShelf.gain.value = 3.0;
-        nodes.clrNormalizer = ctx.createDynamicsCompressor(); nodes.clrNormalizer.threshold.value = -22; nodes.clrNormalizer.knee.value = 12; nodes.clrNormalizer.ratio.value = 1.4; nodes.clrNormalizer.attack.value = 0.02; nodes.clrNormalizer.release.value = 0.15;
-        nodes.clrWidth = createStereoWidthNode(ctx); nodes.clrWidth.setWidth(1.35);
-        nodes.clrAntiDistort = ctx.createGain(); nodes.clrAntiDistort.gain.value = 0.78;
+        nodes.clrBassSmooth = ctx.createBiquadFilter();
+        nodes.clrBassSmooth.type = 'lowshelf';
+        nodes.clrBassSmooth.frequency.value = 80;
+        nodes.clrBassSmooth.gain.value = 2.0;
+        nodes.clrMudCut = ctx.createBiquadFilter();
+        nodes.clrMudCut.type = 'peaking';
+        nodes.clrMudCut.frequency.value = 220;
+        nodes.clrMudCut.Q.value = 0.7;
+        nodes.clrMudCut.gain.value = -2.0;
+        nodes.clrDetailBoost = ctx.createBiquadFilter();
+        nodes.clrDetailBoost.type = 'peaking';
+        nodes.clrDetailBoost.frequency.value = 3200;
+        nodes.clrDetailBoost.Q.value = 0.6;
+        nodes.clrDetailBoost.gain.value = 2.5;
+        nodes.clrAirShelf = ctx.createBiquadFilter();
+        nodes.clrAirShelf.type = 'highshelf';
+        nodes.clrAirShelf.frequency.value = 10000;
+        nodes.clrAirShelf.gain.value = 3.0;
+        nodes.clrNormalizer = ctx.createDynamicsCompressor();
+        nodes.clrNormalizer.threshold.value = -22;
+        nodes.clrNormalizer.knee.value = 12;
+        nodes.clrNormalizer.ratio.value = 1.4;
+        nodes.clrNormalizer.attack.value = 0.02;
+        nodes.clrNormalizer.release.value = 0.15;
+        nodes.clrWidth = createStereoWidthNode(ctx);
+        nodes.clrWidth.setWidth(1.35);
+        nodes.clrAntiDistort = ctx.createGain();
+        nodes.clrAntiDistort.gain.value = 0.78;
 
-        nodes.clrBassSmooth.connect(nodes.clrMudCut); nodes.clrMudCut.connect(nodes.clrDetailBoost); nodes.clrDetailBoost.connect(nodes.clrAirShelf);
-        nodes.clrAirShelf.connect(nodes.clrNormalizer); nodes.clrNormalizer.connect(nodes.clrWidth.input); nodes.clrWidth.output.connect(nodes.clrAntiDistort);
+        nodes.clrBassSmooth.connect(nodes.clrMudCut);
+        nodes.clrMudCut.connect(nodes.clrDetailBoost);
+        nodes.clrDetailBoost.connect(nodes.clrAirShelf);
+        nodes.clrAirShelf.connect(nodes.clrNormalizer);
+        nodes.clrNormalizer.connect(nodes.clrWidth.input);
+        nodes.clrWidth.output.connect(nodes.clrAntiDistort);
 
-        // Pitch Shifter 
         buildPitchShifter(ctx);
 
-        // EQ
-        nodes.eq = [ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter()];
-        nodes.eq[0].type = 'lowshelf'; nodes.eq[0].frequency.value = 100;
-        nodes.eq[1].type = 'peaking'; nodes.eq[1].frequency.value = 500; nodes.eq[1].Q.value = 1.0;
-        nodes.eq[2].type = 'peaking'; nodes.eq[2].frequency.value = 2500; nodes.eq[2].Q.value = 1.0;
-        nodes.eq[3].type = 'highshelf'; nodes.eq[3].frequency.value = 8000;
-        nodes.eq[0].connect(nodes.eq[1]); nodes.eq[1].connect(nodes.eq[2]); nodes.eq[2].connect(nodes.eq[3]);
+        nodes.eq = [ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx.createBiquadFilter(), ctx
+            .createBiquadFilter()
+        ];
+        nodes.eq[0].type = 'lowshelf';
+        nodes.eq[0].frequency.value = 100;
+        nodes.eq[1].type = 'peaking';
+        nodes.eq[1].frequency.value = 500;
+        nodes.eq[1].Q.value = 1.0;
+        nodes.eq[2].type = 'peaking';
+        nodes.eq[2].frequency.value = 2500;
+        nodes.eq[2].Q.value = 1.0;
+        nodes.eq[3].type = 'highshelf';
+        nodes.eq[3].frequency.value = 8000;
+        nodes.eq[0].connect(nodes.eq[1]);
+        nodes.eq[1].connect(nodes.eq[2]);
+        nodes.eq[2].connect(nodes.eq[3]);
 
-        // Comp / Limiter
-        nodes.comp = ctx.createDynamicsCompressor(); updateCompParams();
-        nodes.limit = ctx.createDynamicsCompressor(); nodes.limit.ratio.value = 20; nodes.limit.attack.value = 0.001; nodes.limit.knee.value = 0; updateLimiterParams();
+        nodes.comp = ctx.createDynamicsCompressor();
+        updateCompParams();
+        nodes.limit = ctx.createDynamicsCompressor();
+        nodes.limit.ratio.value = 20;
+        nodes.limit.attack.value = 0.001;
+        nodes.limit.knee.value = 0;
+        updateLimiterParams();
 
-        // Echo
-        nodes.echoIn = ctx.createGain(); nodes.echoOut = ctx.createGain(); nodes.echoDry = ctx.createGain(); nodes.echoWet = ctx.createGain(); nodes.echoDelay = ctx.createDelay(2.0); nodes.echoFb = ctx.createGain();
-        nodes.echoIn.connect(nodes.echoDry); nodes.echoIn.connect(nodes.echoDelay); nodes.echoDelay.connect(nodes.echoFb); nodes.echoFb.connect(nodes.echoDelay); nodes.echoDelay.connect(nodes.echoWet); nodes.echoDry.connect(nodes.echoOut); nodes.echoWet.connect(nodes.echoOut);
+        nodes.echoIn = ctx.createGain();
+        nodes.echoOut = ctx.createGain();
+        nodes.echoDry = ctx.createGain();
+        nodes.echoWet = ctx.createGain();
+        nodes.echoDelay = ctx.createDelay(2.0);
+        nodes.echoFb = ctx.createGain();
+        nodes.echoIn.connect(nodes.echoDry);
+        nodes.echoIn.connect(nodes.echoDelay);
+        nodes.echoDelay.connect(nodes.echoFb);
+        nodes.echoFb.connect(nodes.echoDelay);
+        nodes.echoDelay.connect(nodes.echoWet);
+        nodes.echoDry.connect(nodes.echoOut);
+        nodes.echoWet.connect(nodes.echoOut);
         updateEchoParams();
 
-        // Flanger
-        nodes.flangIn = ctx.createGain(); nodes.flangOut = ctx.createGain(); nodes.flangDelay = ctx.createDelay(1.0); nodes.flangFb = ctx.createGain(); nodes.flangLfo = ctx.createOscillator(); nodes.flangLfo.type = 'sine'; nodes.flangLfoGain = ctx.createGain();
-        nodes.flangLfo.connect(nodes.flangLfoGain); nodes.flangLfoGain.connect(nodes.flangDelay.delayTime); nodes.flangLfo.start();
-        nodes.flangIn.connect(nodes.flangOut); nodes.flangIn.connect(nodes.flangDelay); nodes.flangDelay.connect(nodes.flangFb); nodes.flangFb.connect(nodes.flangDelay); nodes.flangDelay.connect(nodes.flangOut);
+        nodes.flangIn = ctx.createGain();
+        nodes.flangOut = ctx.createGain();
+        nodes.flangDelay = ctx.createDelay(1.0);
+        nodes.flangFb = ctx.createGain();
+        nodes.flangLfo = ctx.createOscillator();
+        nodes.flangLfo.type = 'sine';
+        nodes.flangLfoGain = ctx.createGain();
+        nodes.flangLfo.connect(nodes.flangLfoGain);
+        nodes.flangLfoGain.connect(nodes.flangDelay.delayTime);
+        nodes.flangLfo.start();
+        nodes.flangIn.connect(nodes.flangOut);
+        nodes.flangIn.connect(nodes.flangDelay);
+        nodes.flangDelay.connect(nodes.flangFb);
+        nodes.flangFb.connect(nodes.flangDelay);
+        nodes.flangDelay.connect(nodes.flangOut);
         updateFlangerParams();
 
-        // 8D Audio (Spatial)
         nodes.eightDIn = ctx.createGain();
         nodes.eightDOut = ctx.createGain();
         nodes.eightDPan = ctx.createStereoPanner();
-
         nodes.eightDLfo = ctx.createOscillator();
         nodes.eightDLfo.type = 'sine';
         nodes.eightDLfoGain = ctx.createGain();
-
         nodes.eightDLfo.connect(nodes.eightDLfoGain);
         nodes.eightDLfoGain.connect(nodes.eightDPan.pan);
         nodes.eightDLfo.start();
-
-        nodes.eightDRevConvolver = ctx.createConvolver(); // Shares IR buffer later
+        nodes.eightDRevConvolver = ctx.createConvolver();
         nodes.eightDRevWet = ctx.createGain();
         nodes.eightDRevDry = ctx.createGain();
-
-        // 8D Internal Routing
         nodes.eightDIn.connect(nodes.eightDPan);
         nodes.eightDPan.connect(nodes.eightDRevDry);
         nodes.eightDPan.connect(nodes.eightDRevConvolver);
         nodes.eightDRevConvolver.connect(nodes.eightDRevWet);
-
         nodes.eightDRevDry.connect(nodes.eightDOut);
         nodes.eightDRevWet.connect(nodes.eightDOut);
         updateEightDParams();
 
-        // Mono/Invert/Vocal
-        nodes.mono = ctx.createChannelMerger(1); nodes.invSplit = ctx.createChannelSplitter(2); nodes.invMerge = ctx.createChannelMerger(2);
-        nodes.invSplit.connect(nodes.invMerge, 0, 1); nodes.invSplit.connect(nodes.invMerge, 1, 0);
-        nodes.vocSplit = ctx.createChannelSplitter(2); nodes.vocMerge = ctx.createChannelMerger(2); nodes.vocInvert = ctx.createGain(); nodes.vocInvert.gain.value = -1;
-        nodes.vocSplit.connect(nodes.vocMerge, 0, 0); nodes.vocSplit.connect(nodes.vocMerge, 0, 1); nodes.vocSplit.connect(nodes.vocInvert, 1); nodes.vocInvert.connect(nodes.vocMerge, 0, 0); nodes.vocInvert.connect(nodes.vocMerge, 0, 1);
+        nodes.mono = ctx.createChannelMerger(1);
+        nodes.invSplit = ctx.createChannelSplitter(2);
+        nodes.invMerge = ctx.createChannelMerger(2);
+        nodes.invSplit.connect(nodes.invMerge, 0, 1);
+        nodes.invSplit.connect(nodes.invMerge, 1, 0);
+        nodes.vocSplit = ctx.createChannelSplitter(2);
+        nodes.vocMerge = ctx.createChannelMerger(2);
+        nodes.vocInvert = ctx.createGain();
+        nodes.vocInvert.gain.value = -1;
+        nodes.vocSplit.connect(nodes.vocMerge, 0, 0);
+        nodes.vocSplit.connect(nodes.vocMerge, 0, 1);
+        nodes.vocSplit.connect(nodes.vocInvert, 1);
+        nodes.vocInvert.connect(nodes.vocMerge, 0, 0);
+        nodes.vocInvert.connect(nodes.vocMerge, 0, 1);
 
-        // Reverb 
-        nodes.revIn = ctx.createGain(); nodes.revOut = ctx.createGain();
-        nodes.revDry = ctx.createGain(); nodes.revWet = ctx.createGain();
+        nodes.revIn = ctx.createGain();
+        nodes.revOut = ctx.createGain();
+        nodes.revDry = ctx.createGain();
+        nodes.revWet = ctx.createGain();
         nodes.revPreDelay = ctx.createDelay(1.0);
         nodes.revConvolver = ctx.createConvolver();
-        nodes.revLowCut = ctx.createBiquadFilter(); nodes.revLowCut.type = 'highpass';
+        nodes.revLowCut = ctx.createBiquadFilter();
+        nodes.revLowCut.type = 'highpass';
         nodes.revWidth = createStereoWidthNode(ctx);
-
         nodes.revIn.connect(nodes.revDry);
         nodes.revIn.connect(nodes.revPreDelay);
         nodes.revPreDelay.connect(nodes.revConvolver);
         nodes.revConvolver.connect(nodes.revLowCut);
         nodes.revLowCut.connect(nodes.revWidth.input);
         nodes.revWidth.output.connect(nodes.revWet);
-
         nodes.revDry.connect(nodes.revOut);
         nodes.revWet.connect(nodes.revOut);
         updateReverbParams();
@@ -425,40 +595,71 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildPitchShifter(ctx) {
         const grainSec = 0.045;
         const lfoFreq = 1 / (grainSec * 2);
-
-        nodes.pitchIn = ctx.createGain(); nodes.pitchOut = ctx.createGain();
-        nodes.pitchDelayA = ctx.createDelay(0.3); nodes.pitchDelayB = ctx.createDelay(0.3);
-        nodes.pitchDelayA.delayTime.value = grainSec; nodes.pitchDelayB.delayTime.value = grainSec;
-        nodes.pitchGainA = ctx.createGain(); nodes.pitchGainB = ctx.createGain();
-        nodes.pitchLfo = ctx.createOscillator(); nodes.pitchLfo.type = 'triangle'; nodes.pitchLfo.frequency.value = lfoFreq;
-        nodes.pitchModGainA = ctx.createGain(); nodes.pitchModGainA.gain.value = 0; nodes.pitchModGainB = ctx.createGain(); nodes.pitchModGainB.gain.value = 0;
-        nodes.pitchLfoInvert = ctx.createGain(); nodes.pitchLfoInvert.gain.value = -1;
-        nodes.pitchXfadeLfo = ctx.createOscillator(); nodes.pitchXfadeLfo.type = 'sine'; nodes.pitchXfadeLfo.frequency.value = lfoFreq;
-        nodes.pitchXfadeGainA = ctx.createGain(); nodes.pitchXfadeGainB = ctx.createGain(); nodes.pitchXfadeInvert = ctx.createGain(); nodes.pitchXfadeInvert.gain.value = -1;
-        nodes.pitchXfadeOffsetA = ctx.createGain(); nodes.pitchXfadeOffsetA.gain.value = 0.5; nodes.pitchXfadeOffsetB = ctx.createGain(); nodes.pitchXfadeOffsetB.gain.value = 0.5;
-
-        nodes.pitchLfo.connect(nodes.pitchModGainA); nodes.pitchModGainA.connect(nodes.pitchDelayA.delayTime);
-        nodes.pitchLfo.connect(nodes.pitchLfoInvert); nodes.pitchLfoInvert.connect(nodes.pitchModGainB); nodes.pitchModGainB.connect(nodes.pitchDelayB.delayTime);
-        nodes.pitchXfadeLfo.connect(nodes.pitchXfadeGainA); nodes.pitchXfadeGainA.connect(nodes.pitchXfadeOffsetA); nodes.pitchXfadeOffsetA.connect(nodes.pitchGainA.gain);
-        nodes.pitchXfadeLfo.connect(nodes.pitchXfadeInvert); nodes.pitchXfadeInvert.connect(nodes.pitchXfadeGainB); nodes.pitchXfadeGainB.connect(nodes.pitchXfadeOffsetB); nodes.pitchXfadeOffsetB.connect(nodes.pitchGainB.gain);
-
-        nodes.pitchIn.connect(nodes.pitchDelayA); nodes.pitchIn.connect(nodes.pitchDelayB);
-        nodes.pitchDelayA.connect(nodes.pitchGainA); nodes.pitchDelayB.connect(nodes.pitchGainB);
-        nodes.pitchGainA.connect(nodes.pitchOut); nodes.pitchGainB.connect(nodes.pitchOut);
-
-        nodes.pitchLfo.start(); nodes.pitchXfadeLfo.start();
+        nodes.pitchIn = ctx.createGain();
+        nodes.pitchOut = ctx.createGain();
+        nodes.pitchDelayA = ctx.createDelay(0.3);
+        nodes.pitchDelayB = ctx.createDelay(0.3);
+        nodes.pitchDelayA.delayTime.value = grainSec;
+        nodes.pitchDelayB.delayTime.value = grainSec;
+        nodes.pitchGainA = ctx.createGain();
+        nodes.pitchGainB = ctx.createGain();
+        nodes.pitchLfo = ctx.createOscillator();
+        nodes.pitchLfo.type = 'triangle';
+        nodes.pitchLfo.frequency.value = lfoFreq;
+        nodes.pitchModGainA = ctx.createGain();
+        nodes.pitchModGainA.gain.value = 0;
+        nodes.pitchModGainB = ctx.createGain();
+        nodes.pitchModGainB.gain.value = 0;
+        nodes.pitchLfoInvert = ctx.createGain();
+        nodes.pitchLfoInvert.gain.value = -1;
+        nodes.pitchXfadeLfo = ctx.createOscillator();
+        nodes.pitchXfadeLfo.type = 'sine';
+        nodes.pitchXfadeLfo.frequency.value = lfoFreq;
+        nodes.pitchXfadeGainA = ctx.createGain();
+        nodes.pitchXfadeGainB = ctx.createGain();
+        nodes.pitchXfadeInvert = ctx.createGain();
+        nodes.pitchXfadeInvert.gain.value = -1;
+        nodes.pitchXfadeOffsetA = ctx.createGain();
+        nodes.pitchXfadeOffsetA.gain.value = 0.5;
+        nodes.pitchXfadeOffsetB = ctx.createGain();
+        nodes.pitchXfadeOffsetB.gain.value = 0.5;
+        nodes.pitchLfo.connect(nodes.pitchModGainA);
+        nodes.pitchModGainA.connect(nodes.pitchDelayA.delayTime);
+        nodes.pitchLfo.connect(nodes.pitchLfoInvert);
+        nodes.pitchLfoInvert.connect(nodes.pitchModGainB);
+        nodes.pitchModGainB.connect(nodes.pitchDelayB.delayTime);
+        nodes.pitchXfadeLfo.connect(nodes.pitchXfadeGainA);
+        nodes.pitchXfadeGainA.connect(nodes.pitchXfadeOffsetA);
+        nodes.pitchXfadeOffsetA.connect(nodes.pitchGainA.gain);
+        nodes.pitchXfadeLfo.connect(nodes.pitchXfadeInvert);
+        nodes.pitchXfadeInvert.connect(nodes.pitchXfadeGainB);
+        nodes.pitchXfadeGainB.connect(nodes.pitchXfadeOffsetB);
+        nodes.pitchXfadeOffsetB.connect(nodes.pitchGainB.gain);
+        nodes.pitchIn.connect(nodes.pitchDelayA);
+        nodes.pitchIn.connect(nodes.pitchDelayB);
+        nodes.pitchDelayA.connect(nodes.pitchGainA);
+        nodes.pitchDelayB.connect(nodes.pitchGainB);
+        nodes.pitchGainA.connect(nodes.pitchOut);
+        nodes.pitchGainB.connect(nodes.pitchOut);
+        nodes.pitchLfo.start();
+        nodes.pitchXfadeLfo.start();
     }
 
     function updatePitchShift() {
         if (!audioCtx) return;
         const semitones = vinylMode ? 0 : parseFloat($('sl-pitch').value);
         if (semitones === 0) {
-            nodes.pitchModGainA.gain.value = 0; nodes.pitchModGainB.gain.value = 0; nodes.pitchGainA.gain.value = 1; nodes.pitchGainB.gain.value = 1;
+            nodes.pitchModGainA.gain.value = 0;
+            nodes.pitchModGainB.gain.value = 0;
+            nodes.pitchGainA.gain.value = 1;
+            nodes.pitchGainB.gain.value = 1;
             return;
         }
         const depth = (Math.abs(semitones) / 12) * 0.025;
-        nodes.pitchModGainA.gain.value = depth; nodes.pitchModGainB.gain.value = depth;
-        nodes.pitchXfadeGainA.gain.value = 0.5; nodes.pitchXfadeGainB.gain.value = 0.5;
+        nodes.pitchModGainA.gain.value = depth;
+        nodes.pitchModGainB.gain.value = depth;
+        nodes.pitchXfadeGainA.gain.value = 0.5;
+        nodes.pitchXfadeGainB.gain.value = 0.5;
         nodes.pitchLfoInvert.gain.value = semitones < 0 ? 1 : -1;
     }
 
@@ -480,19 +681,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let curr = sourceNode;
         const pitchVal = vinylMode ? 0 : parseFloat($('sl-pitch').value);
-
-        if (pitchVal !== 0) { curr.connect(nodes.pitchIn); curr = nodes.pitchOut; }
-        if (fx.clarity) { curr.connect(nodes.clrBassSmooth); curr = nodes.clrAntiDistort; }
-        if (fx.eq) { curr.connect(nodes.eq[0]); curr = nodes.eq[3]; }
-        if (fx.vocal) { curr.connect(nodes.vocSplit); curr = nodes.vocMerge; }
-        if (fx.mono) { curr.connect(nodes.mono); curr = nodes.mono; }
-        if (fx.invert) { curr.connect(nodes.invSplit); curr = nodes.invMerge; }
-        if (fx.flanger) { curr.connect(nodes.flangIn); curr = nodes.flangOut; }
-        if (fx.echo) { curr.connect(nodes.echoIn); curr = nodes.echoOut; }
-        if (fx.eightD) { curr.connect(nodes.eightDIn); curr = nodes.eightDOut; }
-        if (fx.reverb) { curr.connect(nodes.revIn); curr = nodes.revOut; }
-        if (fx.comp) { curr.connect(nodes.comp); curr = nodes.comp; }
-        if (fx.limit) { curr.connect(nodes.limit); curr = nodes.limit; }
+        if (pitchVal !== 0) {
+            curr.connect(nodes.pitchIn);
+            curr = nodes.pitchOut;
+        }
+        if (fx.clarity) {
+            curr.connect(nodes.clrBassSmooth);
+            curr = nodes.clrAntiDistort;
+        }
+        if (fx.eq) {
+            curr.connect(nodes.eq[0]);
+            curr = nodes.eq[3];
+        }
+        if (fx.vocal) {
+            curr.connect(nodes.vocSplit);
+            curr = nodes.vocMerge;
+        }
+        if (fx.mono) {
+            curr.connect(nodes.mono);
+            curr = nodes.mono;
+        }
+        if (fx.invert) {
+            curr.connect(nodes.invSplit);
+            curr = nodes.invMerge;
+        }
+        if (fx.flanger) {
+            curr.connect(nodes.flangIn);
+            curr = nodes.flangOut;
+        }
+        if (fx.echo) {
+            curr.connect(nodes.echoIn);
+            curr = nodes.echoOut;
+        }
+        if (fx.eightD) {
+            curr.connect(nodes.eightDIn);
+            curr = nodes.eightDOut;
+        }
+        if (fx.reverb) {
+            curr.connect(nodes.revIn);
+            curr = nodes.revOut;
+        }
+        if (fx.comp) {
+            curr.connect(nodes.comp);
+            curr = nodes.comp;
+        }
+        if (fx.limit) {
+            curr.connect(nodes.limit);
+            curr = nodes.limit;
+        }
 
         curr.connect(analyserNode);
         analyserNode.connect(nodes.masterGain);
@@ -500,35 +736,64 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createStereoWidthNode(ctx) {
-        const split = ctx.createChannelSplitter(2), merge = ctx.createChannelMerger(2);
-        const lMid = ctx.createGain(), rMid = ctx.createGain(), midSum = ctx.createGain();
-        const lSide = ctx.createGain(), rSide = ctx.createGain(), sideSum = ctx.createGain();
-        const midL = ctx.createGain(), midR = ctx.createGain(), sideL = ctx.createGain(), sideR = ctx.createGain();
-        lMid.gain.value = 0.5; rMid.gain.value = 0.5; midSum.gain.value = 1;
-        lSide.gain.value = 0.5; rSide.gain.value = -0.5; sideSum.gain.value = 1;
-        midL.gain.value = 1; midR.gain.value = 1; sideL.gain.value = 1; sideR.gain.value = -1;
-        split.connect(lMid, 0); split.connect(lSide, 0); split.connect(rMid, 1); split.connect(rSide, 1);
-        lMid.connect(midSum); rMid.connect(midSum); lSide.connect(sideSum); rSide.connect(sideSum);
-        midSum.connect(midL); midSum.connect(midR); sideSum.connect(sideL); sideSum.connect(sideR);
-        midL.connect(merge, 0, 0); sideL.connect(merge, 0, 0); midR.connect(merge, 0, 1); sideR.connect(merge, 0, 1);
-        return { input: split, output: merge, setWidth: w => { sideL.gain.value = w; sideR.gain.value = -w; } };
+        const split = ctx.createChannelSplitter(2),
+            merge = ctx.createChannelMerger(2);
+        const lMid = ctx.createGain(),
+            rMid = ctx.createGain(),
+            midSum = ctx.createGain();
+        const lSide = ctx.createGain(),
+            rSide = ctx.createGain(),
+            sideSum = ctx.createGain();
+        const midL = ctx.createGain(),
+            midR = ctx.createGain(),
+            sideL = ctx.createGain(),
+            sideR = ctx.createGain();
+        lMid.gain.value = 0.5;
+        rMid.gain.value = 0.5;
+        midSum.gain.value = 1;
+        lSide.gain.value = 0.5;
+        rSide.gain.value = -0.5;
+        sideSum.gain.value = 1;
+        midL.gain.value = 1;
+        midR.gain.value = 1;
+        sideL.gain.value = 1;
+        sideR.gain.value = -1;
+        split.connect(lMid, 0);
+        split.connect(lSide, 0);
+        split.connect(rMid, 1);
+        split.connect(rSide, 1);
+        lMid.connect(midSum);
+        rMid.connect(midSum);
+        lSide.connect(sideSum);
+        rSide.connect(sideSum);
+        midSum.connect(midL);
+        midSum.connect(midR);
+        sideSum.connect(sideL);
+        sideSum.connect(sideR);
+        midL.connect(merge, 0, 0);
+        sideL.connect(merge, 0, 0);
+        midR.connect(merge, 0, 1);
+        sideR.connect(merge, 0, 1);
+        return {
+            input: split, output: merge, setWidth: w => {
+                sideL.gain.value = w;
+                sideR.gain.value = -w;
+            }
+        };
     }
 
     async function generateReverbIR() {
         if (!audioCtx) return;
-
         const roomSize = parseFloat($('sl-rev-room').value) / 100;
         const decay = (roomSize * 4.5) + 0.5;
         const dampPct = parseFloat($('sl-rev-damp').value) / 100;
         const dampFreq = 20000 - (dampPct * 18000);
-
         const rate = audioCtx.sampleRate;
         const length = Math.floor(rate * decay);
         const offCtx = new OfflineAudioContext(2, length, rate);
         const noise = offCtx.createBuffer(2, length, rate);
         const chL = noise.getChannelData(0);
         const chR = noise.getChannelData(1);
-
         for (let i = 0; i < length; i++) {
             const attack = 1 - Math.exp(-i / (rate * 0.02));
             const decayEnv = Math.pow(1 - i / length, decay * 2);
@@ -536,7 +801,6 @@ document.addEventListener('DOMContentLoaded', () => {
             chL[i] = (Math.random() * 2 - 1) * envelope;
             chR[i] = (Math.random() * 2 - 1) * envelope;
         }
-
         const src = offCtx.createBufferSource();
         src.buffer = noise;
         const lpFilter = offCtx.createBiquadFilter();
@@ -546,16 +810,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const hpFilter = offCtx.createBiquadFilter();
         hpFilter.type = 'highpass';
         hpFilter.frequency.value = parseFloat($('sl-rev-low').value) || 20;
-
         src.connect(lpFilter);
         lpFilter.connect(hpFilter);
         hpFilter.connect(offCtx.destination);
         src.start();
-
         const irBuffer = await offCtx.startRendering();
         nodes.revConvolver.buffer = irBuffer;
-
-        // Share buffer with 8D spatializer
         if (nodes.eightDRevConvolver) nodes.eightDRevConvolver.buffer = irBuffer;
     }
 
@@ -573,80 +833,231 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!audioCtx || !nodes.eightDLfo) return;
         nodes.eightDLfo.frequency.value = parseFloat($('sl-8d-speed').value);
         nodes.eightDLfoGain.gain.value = parseFloat($('sl-8d-width').value) / 100;
-
         const mix = parseFloat($('sl-8d-rev').value) / 100;
-        nodes.eightDRevDry.gain.value = 1.0 - (mix * 0.5); // Prevent clipping
+        nodes.eightDRevDry.gain.value = 1.0 - (mix * 0.5);
         nodes.eightDRevWet.gain.value = mix * 1.5;
     }
 
     function updateCompParams() {
         if (!audioCtx) return;
-        nodes.comp.threshold.value = parseFloat($('sl-comp-thresh').value); nodes.comp.ratio.value = parseFloat($('sl-comp-ratio').value);
-        nodes.comp.attack.value = parseFloat($('sl-comp-att').value) / 1000; nodes.comp.release.value = parseFloat($('sl-comp-rel').value) / 1000;
+        nodes.comp.threshold.value = parseFloat($('sl-comp-thresh').value);
+        nodes.comp.ratio.value = parseFloat($('sl-comp-ratio').value);
+        nodes.comp.attack.value = parseFloat($('sl-comp-att').value) / 1000;
+        nodes.comp.release.value = parseFloat($('sl-comp-rel').value) / 1000;
     }
+
     function updateLimiterParams() {
         if (!audioCtx) return;
-        nodes.limit.threshold.value = parseFloat($('sl-lim-thresh').value); nodes.limit.release.value = parseFloat($('sl-lim-rel').value) / 1000;
+        nodes.limit.threshold.value = parseFloat($('sl-lim-thresh').value);
+        nodes.limit.release.value = parseFloat($('sl-lim-rel').value) / 1000;
     }
+
     function updateEchoParams() {
         if (!audioCtx) return;
-        const mix = parseFloat($('sl-echo-mix').value) / 100; nodes.echoWet.gain.value = mix; nodes.echoDry.gain.value = 1 - (mix * 0.5);
-        nodes.echoDelay.delayTime.value = parseFloat($('sl-echo-time').value) / 1000; nodes.echoFb.gain.value = parseFloat($('sl-echo-fb').value) / 100;
+        const mix = parseFloat($('sl-echo-mix').value) / 100;
+        nodes.echoWet.gain.value = mix;
+        nodes.echoDry.gain.value = 1 - (mix * 0.5);
+        nodes.echoDelay.delayTime.value = parseFloat($('sl-echo-time').value) / 1000;
+        nodes.echoFb.gain.value = parseFloat($('sl-echo-fb').value) / 100;
     }
+
     function updateFlangerParams() {
         if (!audioCtx) return;
         nodes.flangLfo.frequency.value = parseFloat($('sl-flang-rate').value);
         const depth = parseFloat($('sl-flang-depth').value) / 100;
-        nodes.flangLfoGain.gain.value = depth * 0.005; nodes.flangDelay.delayTime.value = 0.005 + (depth * 0.002);
+        nodes.flangLfoGain.gain.value = depth * 0.005;
+        nodes.flangDelay.delayTime.value = 0.005 + (depth * 0.002);
         nodes.flangFb.gain.value = parseFloat($('sl-flang-fb').value) / 100;
     }
 
-    const toggleMap = { 'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp', 'tgl-limit': 'limit', 'tgl-echo': 'echo', 'tgl-flanger': 'flanger', 'tgl-reverb': 'reverb', 'tgl-mono': 'mono', 'tgl-invert': 'invert', 'tgl-8d': 'eightD' };
-    Object.keys(toggleMap).forEach(id => { $(id).onchange = e => { fx[toggleMap[id]] = e.target.checked; routeAudio(); }; });
+    const toggleMap = {
+        'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp',
+        'tgl-limit': 'limit', 'tgl-echo': 'echo', 'tgl-flanger': 'flanger', 'tgl-reverb': 'reverb', 'tgl-mono': 'mono',
+        'tgl-invert': 'invert', 'tgl-8d': 'eightD'
+    };
+    Object.keys(toggleMap).forEach(id => {
+        $(id).onchange = e => {
+            fx[toggleMap[id]] = e.target.checked;
+            routeAudio();
+        };
+    });
 
-    // Speed & Pitch Switches
     $('tgl-vinyl').onchange = e => {
         vinylMode = e.target.checked;
         audio.preservesPitch = !vinylMode;
         $('pitch-group').style.opacity = vinylMode ? '0.4' : '1';
         $('pitch-group').style.pointerEvents = vinylMode ? 'none' : 'auto';
         if (vinylMode) {
-            $('sl-pitch').value = 0; $('val-pitch').textContent = '0.0';
-            updatePitchShift(); routeAudio();
+            $('sl-pitch').value = 0;
+            $('val-pitch').textContent = '0.0';
+            updatePitchShift();
+            routeAudio();
         }
     };
 
     $('res-speed').onclick = () => {
-        $('sl-tempo').value = 1.0; audio.playbackRate = 1.0; $('val-tempo').textContent = '1.00x';
-        $('sl-pitch').value = 0; $('val-pitch').textContent = '0.0'; updatePitchShift(); routeAudio();
+        $('sl-tempo').value = 1.0;
+        audio.playbackRate = 1.0;
+        $('val-tempo').textContent = '1.00x';
+        $('sl-pitch').value = 0;
+        $('val-pitch').textContent = '0.0';
+        updatePitchShift();
+        routeAudio();
     };
 
-    // Resets
-    $('res-clarity').onclick = () => { $('tgl-clarity').checked = false; fx.clarity = false; routeAudio(); };
-    $('res-eq').onclick = () => { $('tgl-eq').checked = false; fx.eq = false; $('eq-preset').value = 'flat';['low', 'lmid', 'hmid', 'high'].forEach((b, i) => { $(`sl-eq-${b}`).value = 0; $(`val-eq-${b}`).textContent = '0 dB'; if (audioCtx) nodes.eq[i].gain.value = 0; }); routeAudio(); };
-    $('res-comp').onclick = () => { $('tgl-comp').checked = false; fx.comp = false; $('sl-comp-thresh').value = -24; $('val-comp-thresh').textContent = '-24 dB'; $('sl-comp-ratio').value = 12; $('val-comp-ratio').textContent = '12:1'; $('sl-comp-att').value = 3; $('val-comp-att').textContent = '3 ms'; $('sl-comp-rel').value = 250; $('val-comp-rel').textContent = '250 ms'; updateCompParams(); routeAudio(); };
-    $('res-limit').onclick = () => { $('tgl-limit').checked = false; fx.limit = false; $('sl-lim-thresh').value = -2; $('val-lim-thresh').textContent = '-2 dB'; $('sl-lim-rel').value = 50; $('val-lim-rel').textContent = '50 ms'; updateLimiterParams(); routeAudio(); };
-    $('res-echo').onclick = () => { $('tgl-echo').checked = false; fx.echo = false; $('sl-echo-mix').value = 40; $('val-echo-mix').textContent = '40%'; $('sl-echo-time').value = 330; $('val-echo-time').textContent = '330 ms'; $('sl-echo-fb').value = 40; $('val-echo-fb').textContent = '40%'; updateEchoParams(); routeAudio(); };
-    $('res-flanger').onclick = () => { $('tgl-flanger').checked = false; fx.flanger = false; $('sl-flang-rate').value = 0.5; $('val-flang-rate').textContent = '0.5 Hz'; $('sl-flang-depth').value = 20; $('val-flang-depth').textContent = '20%'; $('sl-flang-fb').value = 50; $('val-flang-fb').textContent = '50%'; updateFlangerParams(); routeAudio(); };
-    $('res-reverb').onclick = () => { $('tgl-reverb').checked = false; fx.reverb = false; $('sl-rev-wet').value = 35; $('val-rev-wet').textContent = '35%'; $('sl-rev-stereo').value = 100; $('val-rev-stereo').textContent = '100%'; $('sl-rev-damp').value = 25; $('val-rev-damp').textContent = '25%'; $('sl-rev-room').value = 75; $('val-rev-room').textContent = '75%'; $('sl-rev-pre').value = 0; $('val-rev-pre').textContent = '0 ms'; $('sl-rev-low').value = 10; $('val-rev-low').textContent = '10 Hz'; updateReverbParams(); generateReverbIR(); routeAudio(); };
-    $('res-8d').onclick = () => { $('tgl-8d').checked = false; fx.eightD = false; $('sl-8d-speed').value = 0.12; $('val-8d-speed').textContent = '0.12 Hz'; $('sl-8d-width').value = 85; $('val-8d-width').textContent = '85%'; $('sl-8d-rev').value = 40; $('val-8d-rev').textContent = '40%'; updateEightDParams(); routeAudio(); };
+    $('res-clarity').onclick = () => {
+        $('tgl-clarity').checked = false;
+        fx.clarity = false;
+        routeAudio();
+    };
+    $('res-eq').onclick = () => {
+        $('tgl-eq').checked = false;
+        fx.eq = false;
+        $('eq-preset').value = 'flat';
+        ['low', 'lmid', 'hmid', 'high'].forEach((b, i) => {
+            $(`sl-eq-${b}`).value = 0;
+            $(`val-eq-${b}`).textContent = '0 dB'; if (audioCtx) nodes.eq[i].gain.value = 0;
+        });
+        routeAudio();
+    };
+    $('res-comp').onclick = () => {
+        $('tgl-comp').checked = false;
+        fx.comp = false;
+        $('sl-comp-thresh').value = -24;
+        $('val-comp-thresh').textContent = '-24 dB';
+        $('sl-comp-ratio').value = 12;
+        $('val-comp-ratio').textContent = '12:1';
+        $('sl-comp-att').value = 3;
+        $('val-comp-att').textContent = '3 ms';
+        $('sl-comp-rel').value = 250;
+        $('val-comp-rel').textContent = '250 ms';
+        updateCompParams();
+        routeAudio();
+    };
+    $('res-limit').onclick = () => {
+        $('tgl-limit').checked = false;
+        fx.limit = false;
+        $('sl-lim-thresh').value = -2;
+        $('val-lim-thresh').textContent = '-2 dB';
+        $('sl-lim-rel').value = 50;
+        $('val-lim-rel').textContent = '50 ms';
+        updateLimiterParams();
+        routeAudio();
+    };
+    $('res-echo').onclick = () => {
+        $('tgl-echo').checked = false;
+        fx.echo = false;
+        $('sl-echo-mix').value = 40;
+        $('val-echo-mix').textContent = '40%';
+        $('sl-echo-time').value = 330;
+        $('val-echo-time').textContent = '330 ms';
+        $('sl-echo-fb').value = 40;
+        $('val-echo-fb').textContent = '40%';
+        updateEchoParams();
+        routeAudio();
+    };
+    $('res-flanger').onclick = () => {
+        $('tgl-flanger').checked = false;
+        fx.flanger = false;
+        $('sl-flang-rate').value = 0.5;
+        $('val-flang-rate').textContent = '0.5 Hz';
+        $('sl-flang-depth').value = 20;
+        $('val-flang-depth').textContent = '20%';
+        $('sl-flang-fb').value = 50;
+        $('val-flang-fb').textContent = '50%';
+        updateFlangerParams();
+        routeAudio();
+    };
+    $('res-reverb').onclick = () => {
+        $('tgl-reverb').checked = false;
+        fx.reverb = false;
+        $('sl-rev-wet').value = 35;
+        $('val-rev-wet').textContent = '35%';
+        $('sl-rev-stereo').value = 100;
+        $('val-rev-stereo').textContent = '100%';
+        $('sl-rev-damp').value = 25;
+        $('val-rev-damp').textContent = '25%';
+        $('sl-rev-room').value = 75;
+        $('val-rev-room').textContent = '75%';
+        $('sl-rev-pre').value = 0;
+        $('val-rev-pre').textContent = '0 ms';
+        $('sl-rev-low').value = 10;
+        $('val-rev-low').textContent = '10 Hz';
+        updateReverbParams();
+        generateReverbIR();
+        routeAudio();
+    };
+    $('res-8d').onclick = () => {
+        $('tgl-8d').checked = false;
+        fx.eightD = false;
+        $('sl-8d-speed').value = 0.12;
+        $('val-8d-speed').textContent = '0.12 Hz';
+        $('sl-8d-width').value = 85;
+        $('val-8d-width').textContent = '85%';
+        $('sl-8d-rev').value = 40;
+        $('val-8d-rev').textContent = '40%';
+        updateEightDParams();
+        routeAudio();
+    };
 
     const eqPresets = { 'flat': [0, 0, 0, 0], 'bass': [6, 2, 0, 0], 'acoustic': [-2, 2, 4, 3] };
-    $('eq-preset').onchange = (e) => { if (e.target.value === 'custom') return; const vals = eqPresets[e.target.value];['low', 'lmid', 'hmid', 'high'].forEach((b, i) => { $(`sl-eq-${b}`).value = vals[i]; $(`val-eq-${b}`).textContent = (vals[i] > 0 ? '+' : '') + vals[i] + ' dB'; if (audioCtx) nodes.eq[i].gain.value = vals[i]; }); };
-    ['low', 'lmid', 'hmid', 'high'].forEach((b, i) => { $(`sl-eq-${b}`).oninput = (e) => { $('eq-preset').value = 'custom'; $(`val-eq-${b}`).textContent = (e.target.value > 0 ? '+' : '') + e.target.value + ' dB'; if (audioCtx) nodes.eq[i].gain.value = e.target.value; }; });
+    $('eq-preset').onchange = (e) => {
+        if (e.target.value === 'custom') return;
+        const vals = eqPresets[e.target.value];
+        ['low', 'lmid', 'hmid', 'high'].forEach((b, i) => {
+            $(`sl-eq-${b}`).value = vals[i];
+            $(`val-eq-${b}`).textContent = (vals[i] > 0 ? '+' : '') + vals[i] + ' dB'; if (audioCtx) nodes.eq[i]
+                .gain.value = vals[i];
+        });
+    };
+    ['low', 'lmid', 'hmid', 'high'].forEach((b, i) => {
+        $(`sl-eq-${b}`).oninput = (e) => {
+            $('eq-preset').value =
+            'custom';
+            $(`val-eq-${b}`).textContent = (e.target.value > 0 ? '+' : '') + e.target.value + ' dB'; if (audioCtx)
+                nodes.eq[i].gain.value = e.target.value;
+        };
+    });
 
     const bindSlider = (id, valId, suffix, updater, isIR = false) => {
-        let timer; $(id).oninput = e => { $(valId).textContent = e.target.value + suffix; if (updater) updater(); if (isIR) { clearTimeout(timer); timer = setTimeout(generateReverbIR, 300); } };
+        let timer;
+        $(id).oninput = e => {
+            $(valId).textContent = e.target.value + suffix; if (updater) updater(); if (isIR) {
+                clearTimeout(timer);
+                timer = setTimeout(generateReverbIR, 300);
+            }
+        };
     };
 
-    bindSlider('sl-tempo', 'val-tempo', 'x', () => { audio.playbackRate = parseFloat($('sl-tempo').value); $('val-tempo').textContent = parseFloat($('sl-tempo').value).toFixed(2) + 'x'; });
-    bindSlider('sl-pitch', 'val-pitch', '', () => { updatePitchShift(); routeAudio(); });
-    bindSlider('sl-comp-thresh', 'val-comp-thresh', ' dB', updateCompParams); bindSlider('sl-comp-ratio', 'val-comp-ratio', ':1', updateCompParams); bindSlider('sl-comp-att', 'val-comp-att', ' ms', updateCompParams); bindSlider('sl-comp-rel', 'val-comp-rel', ' ms', updateCompParams);
-    bindSlider('sl-lim-thresh', 'val-lim-thresh', ' dB', updateLimiterParams); bindSlider('sl-lim-rel', 'val-lim-rel', ' ms', updateLimiterParams);
-    bindSlider('sl-echo-mix', 'val-echo-mix', '%', updateEchoParams); bindSlider('sl-echo-time', 'val-echo-time', ' ms', updateEchoParams); bindSlider('sl-echo-fb', 'val-echo-fb', '%', updateEchoParams);
-    bindSlider('sl-flang-rate', 'val-flang-rate', ' Hz', updateFlangerParams); bindSlider('sl-flang-depth', 'val-flang-depth', '%', updateFlangerParams); bindSlider('sl-flang-fb', 'val-flang-fb', '%', updateFlangerParams);
-    bindSlider('sl-rev-wet', 'val-rev-wet', '%', updateReverbParams); bindSlider('sl-rev-stereo', 'val-rev-stereo', '%', updateReverbParams); bindSlider('sl-rev-damp', 'val-rev-damp', '%', updateReverbParams, true); bindSlider('sl-rev-room', 'val-rev-room', '%', updateReverbParams, true); bindSlider('sl-rev-pre', 'val-rev-pre', ' ms', updateReverbParams); bindSlider('sl-rev-low', 'val-rev-low', ' Hz', updateReverbParams);
-    bindSlider('sl-8d-speed', 'val-8d-speed', ' Hz', updateEightDParams); bindSlider('sl-8d-width', 'val-8d-width', '%', updateEightDParams); bindSlider('sl-8d-rev', 'val-8d-rev', '%', updateEightDParams);
+    bindSlider('sl-tempo', 'val-tempo', 'x', () => {
+        audio.playbackRate = parseFloat($('sl-tempo').value);
+        $('val-tempo').textContent = parseFloat($('sl-tempo').value).toFixed(2) + 'x';
+    });
+    bindSlider('sl-pitch', 'val-pitch', '', () => {
+        updatePitchShift();
+        routeAudio();
+    });
+    bindSlider('sl-comp-thresh', 'val-comp-thresh', ' dB', updateCompParams);
+    bindSlider('sl-comp-ratio', 'val-comp-ratio', ':1', updateCompParams);
+    bindSlider('sl-comp-att', 'val-comp-att', ' ms', updateCompParams);
+    bindSlider('sl-comp-rel', 'val-comp-rel', ' ms', updateCompParams);
+    bindSlider('sl-lim-thresh', 'val-lim-thresh', ' dB', updateLimiterParams);
+    bindSlider('sl-lim-rel', 'val-lim-rel', ' ms', updateLimiterParams);
+    bindSlider('sl-echo-mix', 'val-echo-mix', '%', updateEchoParams);
+    bindSlider('sl-echo-time', 'val-echo-time', ' ms', updateEchoParams);
+    bindSlider('sl-echo-fb', 'val-echo-fb', '%', updateEchoParams);
+    bindSlider('sl-flang-rate', 'val-flang-rate', ' Hz', updateFlangerParams);
+    bindSlider('sl-flang-depth', 'val-flang-depth', '%', updateFlangerParams);
+    bindSlider('sl-flang-fb', 'val-flang-fb', '%', updateFlangerParams);
+    bindSlider('sl-rev-wet', 'val-rev-wet', '%', updateReverbParams);
+    bindSlider('sl-rev-stereo', 'val-rev-stereo', '%', updateReverbParams);
+    bindSlider('sl-rev-damp', 'val-rev-damp', '%', updateReverbParams, true);
+    bindSlider('sl-rev-room', 'val-rev-room', '%', updateReverbParams, true);
+    bindSlider('sl-rev-pre', 'val-rev-pre', ' ms', updateReverbParams);
+    bindSlider('sl-rev-low', 'val-rev-low', ' Hz', updateReverbParams);
+    bindSlider('sl-8d-speed', 'val-8d-speed', ' Hz', updateEightDParams);
+    bindSlider('sl-8d-width', 'val-8d-width', '%', updateEightDParams);
+    bindSlider('sl-8d-rev', 'val-8d-rev', '%', updateEightDParams);
 
     // ── PLAYLIST MANAGEMENT ──
     function createPlaylist(name) {
@@ -656,9 +1067,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPlaylistsHome();
     }
 
-    $('btn-create-playlist').onclick = () => {
-        const name = prompt("Enter playlist name:");
-        if (name) createPlaylist(name);
+    $('btn-create-playlist').onclick = async () => {
+        const name = await showPrompt('New Playlist', '');
+        if (name && name.trim()) createPlaylist(name);
     };
 
     $('btn-back-playlists').onclick = () => {
@@ -670,15 +1081,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderPlaylistsHome() {
         playlistCardsContainer.innerHTML = '';
 
-        // Favorites Playlist Card
         const favCard = document.createElement('div');
         favCard.className = 'playlist-card';
         const favCount = trackList.filter(t => t.isFavorite).length;
-        favCard.innerHTML = `<div class="playlist-card-info"><h3>Favorites</h3><p>${favCount} tracks</p></div>`;
+        favCard.innerHTML =
+            `<div class="playlist-card-info"><h3>Favorites</h3><p>${favCount} tracks</p></div>`;
         favCard.onclick = () => openPlaylistDetail('favorites', 'Favorites');
         playlistCardsContainer.appendChild(favCard);
 
-        // Folders (Dynamically derived)
         const foldersMap = {};
         trackList.forEach(t => {
             if (t.folderName) {
@@ -689,12 +1099,12 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.keys(foldersMap).forEach(folder => {
             const fCard = document.createElement('div');
             fCard.className = 'playlist-card';
-            fCard.innerHTML = `<div class="playlist-card-info"><h3>${escapeHtml(folder)}</h3><p>${foldersMap[folder]} tracks (Folder)</p></div>`;
+            fCard.innerHTML =
+                `<div class="playlist-card-info"><h3>${escapeHtml(folder)}</h3><p>${foldersMap[folder]} tracks (Folder)</p></div>`;
             fCard.onclick = () => openPlaylistDetail('folder_' + folder, folder);
             playlistCardsContainer.appendChild(fCard);
         });
 
-        // Custom Playlists
         customPlaylists.forEach(pl => {
             const card = document.createElement('div');
             card.className = 'playlist-card';
@@ -709,9 +1119,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             `;
 
-            card.querySelector('.delete-pl-btn').onclick = (e) => {
+            card.querySelector('.delete-pl-btn').onclick = async (e) => {
                 e.stopPropagation();
-                if (confirm(`Delete playlist "${pl.name}"?`)) {
+                const confirmed = await showConfirm('Delete Playlist',
+                    `Are you sure you want to delete "${pl.name}"?`);
+                if (confirmed) {
                     customPlaylists = customPlaylists.filter(p => p.id !== pl.id);
                     renderPlaylistsHome();
                 }
@@ -727,7 +1139,7 @@ document.addEventListener('DOMContentLoaded', () => {
         $('playlist-detail-title').textContent = title;
         playlistsHome.style.display = 'none';
         playlistDetail.style.display = 'block';
-        sortAndRenderTracks(); // Re-render for the active list
+        sortAndRenderTracks();
     }
 
     // ── DYNAMIC ASSET LOADING ──
@@ -745,11 +1157,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         title: decodeURIComponent(filename.replace(/\.[^/.]+$/, '')),
                         artist: 'Assets Directory',
                         url: 'assets/' + filename,
-                        file: null, duration: 0, index: i, element: null,
-                        dateAdded: Date.now(), dateModified: Date.now(), albumArt: null, lyrics: null,
-                        isFavorite: false, folderName: 'Default'
+                        file: null,
+                        duration: 0,
+                        index: i,
+                        element: null,
+                        dateAdded: Date.now(),
+                        dateModified: Date.now(),
+                        albumArt: null,
+                        lyrics: null,
+                        isFavorite: false,
+                        folderName: 'Default'
                     }));
-
                     searchBar.style.display = 'block';
                     emptyState.style.display = 'none';
                     sortAndRenderTracks();
@@ -759,109 +1177,165 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.log("Directory scraping unavailable. Falling back to predefined injection.");
         }
-
         trackList = [1, 2, 3, 4, 5, 6, 7, 8].map(i => ({
             id: 'trk_' + Date.now() + i,
             title: `sample-${i}`,
             artist: 'Assets Directory',
             url: `assets/sample-${i}.mp3`,
-            file: null, duration: 0, index: i - 1, element: null,
-            dateAdded: Date.now(), dateModified: Date.now(), albumArt: null, lyrics: null,
-            isFavorite: false, folderName: 'Default Assets'
+            file: null,
+            duration: 0,
+            index: i - 1,
+            element: null,
+            dateAdded: Date.now(),
+            dateModified: Date.now(),
+            albumArt: null,
+            lyrics: null,
+            isFavorite: false,
+            folderName: 'Default Assets'
         }));
-
         searchBar.style.display = 'block';
         emptyState.style.display = 'none';
         sortAndRenderTracks();
     }
     loadDefaultAssets();
 
-    // Files
     $('btn-open-folder').onclick = () => $('folder-input').click();
     $('btn-open-file').onclick = () => $('file-input').click();
 
     $('folder-input').onchange = e => {
         const files = Array.from(e.target.files).filter(f => f.type.startsWith('audio/'));
-        if (!files.length) return alert('No audio files found.');
+        if (!files.length) {
+            showToast('No audio files found.', 'error');
+            return;
+        }
         const now = Date.now();
         const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Local Folder';
-
         const newTracks = files.map((file, i) => ({
             id: 'trk_' + Math.random().toString(36).substr(2, 9),
             title: file.name.replace(/\.[^/.]+$/, ''),
             artist: 'Local File',
             url: URL.createObjectURL(file),
-            file: file, duration: 0, index: trackList.length + i,
-            element: null, dateAdded: now, dateModified: file.lastModified || now,
-            albumArt: null, lyrics: null, isFavorite: false, folderName: folderName
+            file: file,
+            duration: 0,
+            index: trackList.length + i,
+            element: null,
+            dateAdded: now,
+            dateModified: file.lastModified || now,
+            albumArt: null,
+            lyrics: null,
+            isFavorite: false,
+            folderName: folderName
         }));
-
         trackList = trackList.concat(newTracks);
-        searchBar.style.display = 'block'; emptyState.style.display = 'none';
-        extractAlbumArts(); sortAndRenderTracks(); cancelDrawer();
+        searchBar.style.display = 'block';
+        emptyState.style.display = 'none';
+        extractAlbumArts();
+        sortAndRenderTracks();
+        cancelDrawer();
     };
 
     $('file-input').onchange = e => {
         const file = e.target.files[0];
-        if (!file || !file.type.startsWith('audio/')) return alert('Please select an audio file.');
+        if (!file || !file.type.startsWith('audio/')) {
+            showToast('Please select an audio file.', 'error');
+            return;
+        }
         const now = Date.now();
         const newTrack = {
             id: 'trk_' + Math.random().toString(36).substr(2, 9),
             title: file.name.replace(/\.[^/.]+$/, ''),
             artist: 'Local File',
             url: URL.createObjectURL(file),
-            file: file, duration: 0, index: trackList.length, element: null,
-            dateAdded: now, dateModified: file.lastModified || now, albumArt: null,
-            lyrics: null, isFavorite: false, folderName: null
+            file: file,
+            duration: 0,
+            index: trackList.length,
+            element: null,
+            dateAdded: now,
+            dateModified: file.lastModified || now,
+            albumArt: null,
+            lyrics: null,
+            isFavorite: false,
+            folderName: null
         };
         trackList.push(newTrack);
-        searchBar.style.display = 'block'; emptyState.style.display = 'none';
-        extractAlbumArtForTrack(newTrack); sortAndRenderTracks(); cancelDrawer();
+        searchBar.style.display = 'block';
+        emptyState.style.display = 'none';
+        extractAlbumArtForTrack(newTrack);
+        sortAndRenderTracks();
+        cancelDrawer();
     };
 
     async function extractAlbumArts() { for (const track of trackList) await extractAlbumArtForTrack(track); }
+
     async function extractAlbumArtForTrack(track) {
         if (!track.file) return;
         try {
-            const buffer = await track.file.arrayBuffer(); const view = new DataView(buffer); let offset = 0;
+            const buffer = await track.file.arrayBuffer();
+            const view = new DataView(buffer);
+            let offset = 0;
             if (view.getUint32(0) === 0x49443303 || view.getUint32(0) === 0x49443302) {
-                const size = synchSafeToInt(view.getUint32(6)); offset = 10; const end = offset + size;
+                const size = synchSafeToInt(view.getUint32(6));
+                offset = 10;
+                const end = offset + size;
                 while (offset < end - 10) {
-                    const frameId = String.fromCharCode(view.getUint8(offset), view.getUint8(offset + 1), view.getUint8(offset + 2), view.getUint8(offset + 3));
+                    const frameId = String.fromCharCode(view.getUint8(offset), view.getUint8(offset + 1), view
+                        .getUint8(offset + 2), view.getUint8(offset + 3));
                     const frameSize = view.getUint32(offset + 4);
                     if (frameId === 'APIC') {
-                        const headerEnd = offset + 8; let imgStart = headerEnd;
+                        const headerEnd = offset + 8;
+                        let imgStart = headerEnd;
                         while (imgStart < headerEnd + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
-                        imgStart++; imgStart++;
+                        imgStart++;
+                        imgStart++;
                         while (imgStart < headerEnd + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
                         imgStart++;
                         const imgData = new Uint8Array(buffer.slice(imgStart, headerEnd + frameSize));
-                        track.albumArt = URL.createObjectURL(new Blob([imgData])); return;
+                        track.albumArt = URL.createObjectURL(new Blob([imgData]));
+                        return;
                     }
                     offset += 10 + frameSize;
                 }
             }
         } catch (e) { }
     }
-    function synchSafeToInt(val) { return (val & 0x7F) << 21 | (val & 0x7F00) << 6 | (val & 0x7F0000) >> 9 | (val & 0x7F000000) >>> 24; }
+
+    function synchSafeToInt(val) {
+        return (val & 0x7F) << 21 | (val & 0x7F00) << 6 | (val & 0x7F0000) >> 9 | (val &
+            0x7F000000) >>> 24;
+    }
 
     function sortAndRenderTracks() {
         const sortVal = currentSort;
         switch (sortVal) {
-            case 'name-asc': trackList.sort((a, b) => a.title.localeCompare(b.title)); break;
-            case 'name-desc': trackList.sort((a, b) => b.title.localeCompare(a.title)); break;
-            case 'date-mod-desc': trackList.sort((a, b) => (b.dateModified || 0) - (a.dateModified || 0)); break;
-            case 'date-mod-asc': trackList.sort((a, b) => (a.dateModified || 0) - (b.dateModified || 0)); break;
-            case 'date-add-desc': trackList.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0)); break;
-            case 'date-add-asc': trackList.sort((a, b) => (a.dateAdded || 0) - (b.dateAdded || 0)); break;
-            case 'duration-desc': trackList.sort((a, b) => (b.duration || 0) - (a.duration || 0)); break;
-            case 'duration-asc': trackList.sort((a, b) => (a.duration || 0) - (b.duration || 0)); break;
-            default: trackList.sort((a, b) => a.title.localeCompare(b.title));
+            case 'name-asc':
+                trackList.sort((a, b) => a.title.localeCompare(b.title));
+                break;
+            case 'name-desc':
+                trackList.sort((a, b) => b.title.localeCompare(a.title));
+                break;
+            case 'date-mod-desc':
+                trackList.sort((a, b) => (b.dateModified || 0) - (a.dateModified || 0));
+                break;
+            case 'date-mod-asc':
+                trackList.sort((a, b) => (a.dateModified || 0) - (b.dateModified || 0));
+                break;
+            case 'date-add-desc':
+                trackList.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
+                break;
+            case 'date-add-asc':
+                trackList.sort((a, b) => (a.dateAdded || 0) - (b.dateAdded || 0));
+                break;
+            case 'duration-desc':
+                trackList.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+                break;
+            case 'duration-asc':
+                trackList.sort((a, b) => (a.duration || 0) - (b.duration || 0));
+                break;
+            default:
+                trackList.sort((a, b) => a.title.localeCompare(b.title));
         }
 
         let displayList = trackList;
-
-        // Filter based on active view/playlist
         if (activePlaylistId === 'favorites') {
             displayList = trackList.filter(t => t.isFavorite);
         } else if (activePlaylistId && activePlaylistId.startsWith('folder_')) {
@@ -876,7 +1350,7 @@ document.addEventListener('DOMContentLoaded', () => {
         targetContainer.innerHTML = '';
 
         displayList.forEach((track) => {
-            const idx = trackList.indexOf(track); // Keep global index for audio playing
+            const idx = trackList.indexOf(track);
             const item = document.createElement('div');
             item.className = 'song-item';
             if (currentTrackIndex === idx) item.classList.add('active-track');
@@ -898,52 +1372,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="icon-btn heart-btn" aria-label="Favorite" style="color: ${heartColor};">${heartIcon}</button>
             `;
 
-            // Handle Track Click
             item.onclick = async (e) => {
-                if (e.target.closest('.heart-btn')) return; // Ignore if clicking heart
+                if (e.target.closest('.heart-btn')) return;
                 await initAudioContext();
-                if (currentTrackIndex === idx) togglePlay(); else playTrack(idx);
+                if (currentTrackIndex === idx) togglePlay();
+                else playTrack(idx);
             };
 
-            // Handle Heart Click
             item.querySelector('.heart-btn').onclick = (e) => {
                 e.stopPropagation();
                 track.isFavorite = !track.isFavorite;
                 e.currentTarget.innerHTML = track.isFavorite ? filledHeart : outlineHeart;
                 e.currentTarget.style.color = track.isFavorite ? 'var(--accent)' : 'var(--text-muted)';
-
-                // If in favorites view and unfavorited, re-render to remove it
                 if (activePlaylistId === 'favorites' && !track.isFavorite) {
                     sortAndRenderTracks();
                 }
             };
 
-            targetContainer.appendChild(item); track.element = item;
+            targetContainer.appendChild(item);
+            track.element = item;
 
             const temp = new Audio(track.url);
             temp.onloadedmetadata = () => {
                 track.duration = temp.duration;
-                const durEl = item.querySelector('.song-duration'); if (durEl) durEl.textContent = formatTime(track.duration);
+                const durEl = item.querySelector('.song-duration');
+                if (durEl) durEl.textContent = formatTime(track.duration);
             };
         });
     }
-    function escapeHtml(t) { return t.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]); }
+
+    function escapeHtml(t) {
+        return t.replace(/[&<>"']/g, m => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;',
+            '"': '&quot;', "'": '&#039;'
+        })[m]);
+    }
 
     // ── PLAYER CONTROL ──
     async function playTrack(idx) {
         if (idx < 0 || idx >= trackList.length) return;
-        currentTrackIndex = idx; const t = trackList[idx];
-        audio.src = t.url; audio.load();
+        currentTrackIndex = idx;
+        const t = trackList[idx];
+        audio.src = t.url;
+        audio.load();
         nowPlayingTitle.textContent = t.title;
-
-        // Update styling classes
         document.querySelectorAll('.song-item').forEach(i => i.classList.remove('active-track'));
         if (t.element) {
             t.element.classList.add('active-track');
             const ind = t.element.querySelector('.playing-indicator');
             if (ind) ind.innerHTML = playIndicatorSvg;
         }
-
         $('btn-download').disabled = false;
         await initAudioContext();
         audio.play().then(() => setPlayState(true)).catch(e => console.log(e));
@@ -963,8 +1441,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const pauseIcons = document.querySelectorAll('.pause-icon, .np-pause-icon');
         playIcons.forEach(icon => icon.style.display = p ? 'none' : 'block');
         pauseIcons.forEach(icon => icon.style.display = p ? 'block' : 'none');
-
-        // Update list indicators
         if (currentTrackIndex >= 0 && trackList[currentTrackIndex].element) {
             const ind = trackList[currentTrackIndex].element.querySelector('.playing-indicator');
             if (ind) ind.innerHTML = p ? playIndicatorSvg : pausedIndicatorSvg;
@@ -992,16 +1468,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    progressBar.oninput = e => { if (audio.duration) audio.currentTime = (e.target.value / 1000) * audio.duration; };
+    progressBar.oninput = e => {
+        if (audio.duration) audio.currentTime = (e.target.value / 1000) * audio
+            .duration;
+    };
 
-    function playNext() { if (trackList.length) playTrack(shuffleMode ? Math.floor(Math.random() * trackList.length) : (currentTrackIndex + 1) % trackList.length); }
-    function playPrev() { if (trackList.length) playTrack(audio.currentTime > 3 ? currentTrackIndex : (shuffleMode ? Math.floor(Math.random() * trackList.length) : (currentTrackIndex - 1 + trackList.length) % trackList.length)); }
-    function formatTime(s) { if (!isFinite(s)) return '0:00'; const m = Math.floor(s / 60), sec = Math.floor(s % 60).toString().padStart(2, '0'); return `${m}:${sec}`; }
+    function playNext() {
+        if (trackList.length) playTrack(shuffleMode ? Math.floor(Math.random() * trackList.length) :
+            (currentTrackIndex + 1) % trackList.length);
+    }
 
-    // Sync Buttons across UI
+    function playPrev() {
+        if (trackList.length) playTrack(audio.currentTime > 3 ? currentTrackIndex : (shuffleMode ? Math
+            .floor(Math.random() * trackList.length) : (currentTrackIndex - 1 + trackList.length) % trackList
+                .length));
+    }
+
+    function formatTime(s) {
+        if (!isFinite(s)) return '0:00';
+        const m = Math.floor(s / 60),
+            sec = Math.floor(s % 60).toString().padStart(2, '0'); return `${m}:${sec}`;
+    }
+
     const toggleShuffle = () => {
         shuffleMode = !shuffleMode;
-        document.querySelectorAll('.btn-shuffle, .np-btn-shuffle').forEach(btn => btn.classList.toggle('active', shuffleMode));
+        document.querySelectorAll('.btn-shuffle, .np-btn-shuffle').forEach(btn => btn.classList.toggle('active',
+            shuffleMode));
     };
 
     const toggleRepeat = () => {
@@ -1009,9 +1501,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-repeat, .np-btn-repeat').forEach(btn => {
             btn.classList.toggle('active', repeatMode !== 'off');
             if (repeatMode === 'one') {
-                btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /><text x="12" y="15" font-size="9" text-anchor="middle" font-weight="900" fill="currentColor" stroke="none">1</text></svg>`;
+                btn.innerHTML =
+                    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /><text x="12" y="15" font-size="9" text-anchor="middle" font-weight="900" fill="currentColor" stroke="none">1</text></svg>`;
             } else {
-                btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>`;
+                btn.innerHTML =
+                    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>`;
             }
         });
     };
@@ -1026,7 +1520,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawVisualizer() {
         requestAnimationFrame(drawVisualizer);
         if (!analyserNode) return;
-        const w = visualizerCanvas.width, h = visualizerCanvas.height, data = new Uint8Array(analyserNode.frequencyBinCount);
+        const w = visualizerCanvas.width,
+            h = visualizerCanvas.height,
+            data = new Uint8Array(analyserNode.frequencyBinCount);
         analyserNode.getByteFrequencyData(data);
         visualizerCtx.clearRect(0, 0, w, h);
         visualizerCtx.fillStyle = getComputedStyle(body).getPropertyValue('--accent').trim();
@@ -1044,38 +1540,72 @@ document.addEventListener('DOMContentLoaded', () => {
     // Export Logic
     $('btn-download').onclick = async () => {
         if (currentTrackIndex < 0 || !trackList[currentTrackIndex]) return;
-
         const pitchVal = parseFloat($('sl-pitch').value);
         if (!Object.values(fx).some(v => v) && audio.playbackRate === 1.0 && (pitchVal === 0 || vinylMode)) {
             const a = document.createElement('a');
             a.href = trackList[currentTrackIndex].url;
-            a.download = trackList[currentTrackIndex].file ? trackList[currentTrackIndex].file.name : `${trackList[currentTrackIndex].title}.${exportFormat}`;
-            a.click(); return;
+            a.download = trackList[currentTrackIndex].file ? trackList[currentTrackIndex].file.name :
+                `${trackList[currentTrackIndex].title}.${exportFormat}`;
+            a.click();
+            return;
         }
 
-        const btn = $('btn-download'); btn.disabled = true; btn.classList.add('progress-active'); btn.style.setProperty('--dl-progress', '0%');
-        let simProgress = 0; let progInterval = setInterval(() => { simProgress += (95 - simProgress) * 0.08; btn.style.setProperty('--dl-progress', simProgress + '%'); }, 150);
+        const btn = $('btn-download');
+        btn.disabled = true;
+        btn.classList.add('progress-active');
+        btn.style.setProperty('--dl-progress', '0%');
+        let simProgress = 0;
+        let progInterval = setInterval(() => {
+            simProgress += (95 - simProgress) * 0.08;
+            btn.style.setProperty('--dl-progress', simProgress + '%');
+        }, 150);
 
         try {
             let buffer;
-            if (trackList[currentTrackIndex].file) { buffer = await trackList[currentTrackIndex].file.arrayBuffer(); }
-            else { const response = await fetch(trackList[currentTrackIndex].url); if (!response.ok) throw new Error("Failed to fetch audio file"); buffer = await response.arrayBuffer(); }
+            if (trackList[currentTrackIndex].file) {
+                buffer = await trackList[currentTrackIndex].file
+                    .arrayBuffer();
+            } else {
+                const response = await fetch(trackList[currentTrackIndex].url); if (!response
+                    .ok) throw new Error("Failed to fetch audio file");
+                buffer = await response.arrayBuffer();
+            }
 
             const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
             const decoded = await tempCtx.decodeAudioData(buffer);
-
-            const length = (decoded.length / audio.playbackRate) + (fx.reverb || fx.echo || fx.eightD ? tempCtx.sampleRate * 5 : 0);
+            const length = (decoded.length / audio.playbackRate) + (fx.reverb || fx.echo || fx.eightD ? tempCtx
+                .sampleRate * 5 : 0);
             const offCtx = new OfflineAudioContext(decoded.numberOfChannels, length, tempCtx.sampleRate);
-            const src = offCtx.createBufferSource(); src.buffer = decoded; src.playbackRate.value = audio.playbackRate;
+            const src = offCtx.createBufferSource();
+            src.buffer = decoded;
+            src.playbackRate.value = audio.playbackRate;
 
             let curr = src;
 
             if (fx.clarity) {
-                const oBass = offCtx.createBiquadFilter(); oBass.type = 'lowshelf'; oBass.frequency.value = 80; oBass.gain.value = 2.0;
-                const oMud = offCtx.createBiquadFilter(); oMud.type = 'peaking'; oMud.frequency.value = 220; oMud.Q.value = 0.7; oMud.gain.value = -2.0;
-                const oDetail = offCtx.createBiquadFilter(); oDetail.type = 'peaking'; oDetail.frequency.value = 3200; oDetail.Q.value = 0.6; oDetail.gain.value = 2.5;
-                const oAir = offCtx.createBiquadFilter(); oAir.type = 'highshelf'; oAir.frequency.value = 10000; oAir.gain.value = 3.0;
-                curr.connect(oBass); oBass.connect(oMud); oMud.connect(oDetail); oDetail.connect(oAir); curr = oAir;
+                const oBass = offCtx.createBiquadFilter();
+                oBass.type = 'lowshelf';
+                oBass.frequency.value = 80;
+                oBass.gain.value = 2.0;
+                const oMud = offCtx.createBiquadFilter();
+                oMud.type = 'peaking';
+                oMud.frequency.value = 220;
+                oMud.Q.value = 0.7;
+                oMud.gain.value = -2.0;
+                const oDetail = offCtx.createBiquadFilter();
+                oDetail.type = 'peaking';
+                oDetail.frequency.value = 3200;
+                oDetail.Q.value = 0.6;
+                oDetail.gain.value = 2.5;
+                const oAir = offCtx.createBiquadFilter();
+                oAir.type = 'highshelf';
+                oAir.frequency.value = 10000;
+                oAir.gain.value = 3.0;
+                curr.connect(oBass);
+                oBass.connect(oMud);
+                oMud.connect(oDetail);
+                oDetail.connect(oAir);
+                curr = oAir;
             }
 
             if (fx.eightD) {
@@ -1088,13 +1618,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 oLfo.connect(oGain);
                 oGain.connect(oPanner.pan);
                 oLfo.start(0);
-
                 const eightDRoot = offCtx.createGain();
                 curr.connect(oPanner);
-
                 const revGain = offCtx.createGain();
                 const mix = parseFloat($('sl-8d-rev').value) / 100;
-
                 if (nodes.revConvolver.buffer) {
                     const oConv = offCtx.createConvolver();
                     oConv.buffer = nodes.revConvolver.buffer;
@@ -1102,43 +1629,86 @@ document.addEventListener('DOMContentLoaded', () => {
                     oConv.connect(revGain);
                     revGain.gain.value = mix * 1.5;
                 }
-
                 const dryGain = offCtx.createGain();
                 dryGain.gain.value = 1.0 - (mix * 0.5);
                 oPanner.connect(dryGain);
-
                 dryGain.connect(eightDRoot);
                 revGain.connect(eightDRoot);
                 curr = eightDRoot;
             }
 
             if (fx.reverb && nodes.revConvolver.buffer) {
-                const oConv = offCtx.createConvolver(); oConv.buffer = nodes.revConvolver.buffer;
-                const oDry = offCtx.createGain(); oDry.gain.value = nodes.revDry.gain.value;
-                const oWet = offCtx.createGain(); oWet.gain.value = nodes.revWet.gain.value;
-                curr.connect(oDry); curr.connect(oConv); oConv.connect(oWet);
-                oDry.connect(offCtx.destination); oWet.connect(offCtx.destination);
+                const oConv = offCtx.createConvolver();
+                oConv.buffer = nodes.revConvolver.buffer;
+                const oDry = offCtx.createGain();
+                oDry.gain.value = nodes.revDry.gain.value;
+                const oWet = offCtx.createGain();
+                oWet.gain.value = nodes.revWet.gain.value;
+                curr.connect(oDry);
+                curr.connect(oConv);
+                oConv.connect(oWet);
+                oDry.connect(offCtx.destination);
+                oWet.connect(offCtx.destination);
             } else { curr.connect(offCtx.destination); }
 
             src.start(0);
             const rendered = await offCtx.startRendering();
+            clearInterval(progInterval);
+            btn.style.setProperty('--dl-progress', '100%');
 
-            clearInterval(progInterval); btn.style.setProperty('--dl-progress', '100%');
-
-            let nCh = rendered.numberOfChannels, len = rendered.length * nCh * 2 + 44, out = new ArrayBuffer(len), view = new DataView(out), chs = [], offset = 0, pos = 0;
-            const set16 = d => { view.setUint16(pos, d, true); pos += 2; }; const set32 = d => { view.setUint32(pos, d, true); pos += 4; };
-            set32(0x46464952); set32(len - 8); set32(0x45564157); set32(0x20746d66); set32(16); set16(1); set16(nCh); set32(rendered.sampleRate); set32(rendered.sampleRate * 2 * nCh); set16(nCh * 2); set16(16); set32(0x61746164); set32(len - pos - 4);
+            let nCh = rendered.numberOfChannels,
+                len = rendered.length * nCh * 2 + 44,
+                out = new ArrayBuffer(len),
+                view = new DataView(out),
+                chs = [],
+                offset = 0,
+                pos = 0;
+            const set16 = d => {
+                view.setUint16(pos, d, true);
+                pos += 2;
+            };
+            const set32 = d => {
+                view.setUint32(pos, d, true);
+                pos += 4;
+            };
+            set32(0x46464952);
+            set32(len - 8);
+            set32(0x45564157);
+            set32(0x20746d66);
+            set32(16);
+            set16(1);
+            set16(nCh);
+            set32(rendered.sampleRate);
+            set32(rendered.sampleRate * 2 * nCh);
+            set16(nCh * 2);
+            set16(16);
+            set32(0x61746164);
+            set32(len - pos - 4);
             for (let i = 0; i < nCh; i++) chs.push(rendered.getChannelData(i));
             while (pos < len) {
                 for (let i = 0; i < nCh; i++) {
                     let s = Math.max(-1, Math.min(1, chs[i][offset]));
-                    view.setInt16(pos, s < 0 ? s * 32768 : s * 32767, true); pos += 2;
-                } offset++;
+                    view.setInt16(pos, s < 0 ? s * 32768 : s * 32767, true);
+                    pos += 2;
+                }
+                offset++;
             }
 
             const ext = exportFormat === 'mp3' ? 'mp3' : exportFormat === 'flac' ? 'flac' : 'wav';
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out], { type: 'audio/wav' })); a.download = `Processed_${trackList[currentTrackIndex].title}.${ext}`; a.click(); tempCtx.close();
-        } catch (e) { console.error(e); alert('Export failed'); clearInterval(progInterval); }
-        setTimeout(() => { btn.classList.remove('progress-active'); btn.style.setProperty('--dl-progress', '0%'); btn.disabled = false; }, 800);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([out], { type: 'audio/wav' }));
+            a.download = `Processed_${trackList[currentTrackIndex].title}.${ext}`;
+            a.click();
+            tempCtx.close();
+        } catch (e) {
+            console.error(e);
+            showToast('Export failed', 'error');
+            clearInterval(progInterval);
+        }
+        setTimeout(() => {
+            btn.classList.remove('progress-active');
+            btn.style.setProperty('--dl-progress', '0%');
+            btn.disabled = false;
+        }, 800);
     };
 });
