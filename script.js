@@ -3,8 +3,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const body = document.body;
 
     // UI Connections
-    const views = { 'songs-view': $('songs-view'), 'effects-panel': $('effects-panel') };
+    const views = {
+        'songs-view': $('songs-view'),
+        'playlists-view': $('playlists-view'),
+        'effects-panel': $('effects-panel')
+    };
     const songListContainer = $('song-list');
+    const playlistsHome = $('playlists-home');
+    const playlistDetail = $('playlist-detail');
+    const playlistCardsContainer = $('playlists-container');
+    const playlistSongList = $('playlist-song-list');
+
     const emptyState = $('empty-state');
     const searchBar = $('search-bar');
     const nowPlayingTitle = $('now-playing-title');
@@ -13,6 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalTimeEl = $('total-time');
     const visualizerCanvas = $('visualizer');
     const visualizerCtx = visualizerCanvas.getContext('2d');
+
+    // SVG Icons
+    const outlineHeart = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
+    const filledHeart = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
+    const playIndicatorSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`; // Pause icon implies it's currently playing
+    const pausedIndicatorSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`; // Play icon implies it's paused
 
     // System States
     let trackList = [];
@@ -23,14 +38,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let exportFormat = 'wav';
     let currentSort = 'name-asc';
 
+    // Playlists State
+    let customPlaylists = [];
+    let activePlaylistId = null; // null = library view
+
     // ── NATIVE AUDIO ENGINE ──
     const audio = new Audio();
-    // Default setting for Vinyl Mode (perfect slowed+reverb without robotic artifacts)
     let vinylMode = true;
     audio.preservesPitch = !vinylMode;
 
     let audioCtx, sourceNode, analyserNode;
-    const fx = { clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false };
+    const fx = { clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false };
     let nodes = {};
 
     // ── MATERIAL YOU COLOR INFRASTRUCTURE ──
@@ -113,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Export Format Selector
     const formatBtns = document.querySelectorAll('.format-btn');
     const formatNote = $('format-note');
-    const formatNotes = { 'wav': 'WAV — Lossless, universal', 'mp3': 'MP3 — Compressed (WAV used; add lamejs for true MP3)', 'flac': 'FLAC — Lossless compressed (WAV used; add FLAC encoder)' };
+    const formatNotes = { 'wav': 'WAV — Lossless, universal', 'mp3': 'MP3 — Compressed', 'flac': 'FLAC — Lossless compressed' };
     formatBtns.forEach(btn => {
         btn.onclick = () => {
             formatBtns.forEach(b => b.classList.remove('active'));
@@ -142,19 +160,28 @@ document.addEventListener('DOMContentLoaded', () => {
         let diffX = e.changedTouches[0].screenX - touchStartX;
         let diffY = e.changedTouches[0].screenY - touchStartY;
 
-        if (swipeFromFooter && diffY < -50 && Math.abs(diffY) > Math.abs(diffX)) { openNowPlayingOverlay(); return; }
+        if (swipeFromFooter && diffY < -50 && Math.abs(diffY) > Math.abs(diffX)) {
+            if (!$('drawer').classList.contains('open')) {
+                openNowPlayingOverlay();
+            }
+            return;
+        }
+
         const npOverlay = $('now-playing-overlay');
         if (npOverlay.classList.contains('open') && diffY > 60 && Math.abs(diffY) > Math.abs(diffX)) { closeNowPlayingOverlay(); return; }
+
         if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
             const isDrawerOpen = $('drawer').classList.contains('open');
             const activeTab = document.querySelector('.tabs button.active').dataset.view;
             if (diffX > 0) {
                 if (isDrawerOpen) return;
-                if (activeTab === 'effects-panel') document.querySelector('.tabs button[data-view="songs-view"]').click();
+                if (activeTab === 'effects-panel') document.querySelector('.tabs button[data-view="playlists-view"]').click();
+                else if (activeTab === 'playlists-view') document.querySelector('.tabs button[data-view="songs-view"]').click();
                 else if (activeTab === 'songs-view') $('btn-menu').click();
             } else {
                 if (isDrawerOpen) $('btn-close-drawer').click();
-                else if (activeTab === 'songs-view') document.querySelector('.tabs button[data-view="effects-panel"]').click();
+                else if (activeTab === 'songs-view') document.querySelector('.tabs button[data-view="playlists-view"]').click();
+                else if (activeTab === 'playlists-view') document.querySelector('.tabs button[data-view="effects-panel"]').click();
             }
         }
     }, { passive: true });
@@ -182,14 +209,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const t = trackList[currentTrackIndex];
         $('np-title').textContent = t.title;
         $('np-artist').textContent = t.artist || '';
+
         if (t.albumArt) {
             $('np-album-art').src = t.albumArt;
-            $('np-album-art').style.display = 'block';
-            $('np-art-placeholder').style.display = 'none';
         } else {
-            $('np-album-art').style.display = 'none';
-            $('np-art-placeholder').style.display = 'flex';
+            const imgIndex = (t.index % 7) + 1;
+            $('np-album-art').src = `assets/image-${imgIndex}.jpg`;
         }
+        $('np-album-art').style.display = 'block';
+        $('np-art-placeholder').style.display = 'none';
+
         if (t.lyrics) {
             $('np-lyrics-display').textContent = t.lyrics;
             $('np-lyrics-display').style.display = 'block';
@@ -255,6 +284,14 @@ document.addEventListener('DOMContentLoaded', () => {
             tab.classList.add('active');
             Object.values(views).forEach(v => v.classList.remove('active-view'));
             views[tab.dataset.view].classList.add('active-view');
+
+            // Re-render UI on tab switch
+            if (tab.dataset.view === 'songs-view') {
+                activePlaylistId = null;
+                sortAndRenderTracks();
+            } else if (tab.dataset.view === 'playlists-view') {
+                renderPlaylistsHome();
+            }
         };
     });
 
@@ -267,7 +304,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     $('search-input').oninput = e => {
         const q = e.target.value.toLowerCase();
-        document.querySelectorAll('.song-item').forEach(item => { item.style.display = item.innerText.toLowerCase().includes(q) ? 'flex' : 'none'; });
+        document.querySelectorAll('.song-item').forEach(item => {
+            const title = item.querySelector('h3').innerText.toLowerCase();
+            const artist = item.querySelector('p').innerText.toLowerCase();
+            item.style.display = (title.includes(q) || artist.includes(q)) ? 'flex' : 'none';
+        });
     };
 
     // Audio Context Setup
@@ -302,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.clrBassSmooth.connect(nodes.clrMudCut); nodes.clrMudCut.connect(nodes.clrDetailBoost); nodes.clrDetailBoost.connect(nodes.clrAirShelf);
         nodes.clrAirShelf.connect(nodes.clrNormalizer); nodes.clrNormalizer.connect(nodes.clrWidth.input); nodes.clrWidth.output.connect(nodes.clrAntiDistort);
 
-        // Pitch Shifter (Granular JS Fallback - Bypassed in Vinyl Mode)
+        // Pitch Shifter 
         buildPitchShifter(ctx);
 
         // EQ
@@ -328,13 +369,40 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.flangIn.connect(nodes.flangOut); nodes.flangIn.connect(nodes.flangDelay); nodes.flangDelay.connect(nodes.flangFb); nodes.flangFb.connect(nodes.flangDelay); nodes.flangDelay.connect(nodes.flangOut);
         updateFlangerParams();
 
+        // 8D Audio (Spatial)
+        nodes.eightDIn = ctx.createGain();
+        nodes.eightDOut = ctx.createGain();
+        nodes.eightDPan = ctx.createStereoPanner();
+
+        nodes.eightDLfo = ctx.createOscillator();
+        nodes.eightDLfo.type = 'sine';
+        nodes.eightDLfoGain = ctx.createGain();
+
+        nodes.eightDLfo.connect(nodes.eightDLfoGain);
+        nodes.eightDLfoGain.connect(nodes.eightDPan.pan);
+        nodes.eightDLfo.start();
+
+        nodes.eightDRevConvolver = ctx.createConvolver(); // Shares IR buffer later
+        nodes.eightDRevWet = ctx.createGain();
+        nodes.eightDRevDry = ctx.createGain();
+
+        // 8D Internal Routing
+        nodes.eightDIn.connect(nodes.eightDPan);
+        nodes.eightDPan.connect(nodes.eightDRevDry);
+        nodes.eightDPan.connect(nodes.eightDRevConvolver);
+        nodes.eightDRevConvolver.connect(nodes.eightDRevWet);
+
+        nodes.eightDRevDry.connect(nodes.eightDOut);
+        nodes.eightDRevWet.connect(nodes.eightDOut);
+        updateEightDParams();
+
         // Mono/Invert/Vocal
         nodes.mono = ctx.createChannelMerger(1); nodes.invSplit = ctx.createChannelSplitter(2); nodes.invMerge = ctx.createChannelMerger(2);
         nodes.invSplit.connect(nodes.invMerge, 0, 1); nodes.invSplit.connect(nodes.invMerge, 1, 0);
         nodes.vocSplit = ctx.createChannelSplitter(2); nodes.vocMerge = ctx.createChannelMerger(2); nodes.vocInvert = ctx.createGain(); nodes.vocInvert.gain.value = -1;
         nodes.vocSplit.connect(nodes.vocMerge, 0, 0); nodes.vocSplit.connect(nodes.vocMerge, 0, 1); nodes.vocSplit.connect(nodes.vocInvert, 1); nodes.vocInvert.connect(nodes.vocMerge, 0, 0); nodes.vocInvert.connect(nodes.vocMerge, 0, 1);
 
-        // Reverb (Upgraded for Studio Quality Convolver)
+        // Reverb 
         nodes.revIn = ctx.createGain(); nodes.revOut = ctx.createGain();
         nodes.revDry = ctx.createGain(); nodes.revWet = ctx.createGain();
         nodes.revPreDelay = ctx.createDelay(1.0);
@@ -354,7 +422,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateReverbParams();
     }
 
-    // Granular Pitch Shifter (Used ONLY if Vinyl Mode is OFF)
     function buildPitchShifter(ctx) {
         const grainSec = 0.045;
         const lfoFreq = 1 / (grainSec * 2);
@@ -406,6 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nodes.invMerge) nodes.invMerge.disconnect();
         if (nodes.flangOut) nodes.flangOut.disconnect();
         if (nodes.echoOut) nodes.echoOut.disconnect();
+        if (nodes.eightDOut) nodes.eightDOut.disconnect();
         if (nodes.revOut) nodes.revOut.disconnect();
         if (nodes.comp) nodes.comp.disconnect();
         if (nodes.limit) nodes.limit.disconnect();
@@ -421,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fx.invert) { curr.connect(nodes.invSplit); curr = nodes.invMerge; }
         if (fx.flanger) { curr.connect(nodes.flangIn); curr = nodes.flangOut; }
         if (fx.echo) { curr.connect(nodes.echoIn); curr = nodes.echoOut; }
+        if (fx.eightD) { curr.connect(nodes.eightDIn); curr = nodes.eightDOut; }
         if (fx.reverb) { curr.connect(nodes.revIn); curr = nodes.revOut; }
         if (fx.comp) { curr.connect(nodes.comp); curr = nodes.comp; }
         if (fx.limit) { curr.connect(nodes.limit); curr = nodes.limit; }
@@ -445,47 +514,35 @@ document.addEventListener('DOMContentLoaded', () => {
         return { input: split, output: merge, setWidth: w => { sideL.gain.value = w; sideR.gain.value = -w; } };
     }
 
-    // Upgraded Reverb Generation (Cleaner, Lush, Preserves Detail)
     async function generateReverbIR() {
         if (!audioCtx) return;
 
-        // Room size determines decay time (0.5s to 5s)
         const roomSize = parseFloat($('sl-rev-room').value) / 100;
         const decay = (roomSize * 4.5) + 0.5;
-
-        // Damping determines high-frequency roll-off
         const dampPct = parseFloat($('sl-rev-damp').value) / 100;
         const dampFreq = 20000 - (dampPct * 18000);
 
         const rate = audioCtx.sampleRate;
         const length = Math.floor(rate * decay);
         const offCtx = new OfflineAudioContext(2, length, rate);
-
         const noise = offCtx.createBuffer(2, length, rate);
         const chL = noise.getChannelData(0);
         const chR = noise.getChannelData(1);
 
         for (let i = 0; i < length; i++) {
-            // Smooth exponential decay with a tiny attack (bloom) to prevent clicking
             const attack = 1 - Math.exp(-i / (rate * 0.02));
             const decayEnv = Math.pow(1 - i / length, decay * 2);
             const envelope = attack * decayEnv;
-
-            // True stereo decorrelated noise
             chL[i] = (Math.random() * 2 - 1) * envelope;
             chR[i] = (Math.random() * 2 - 1) * envelope;
         }
 
         const src = offCtx.createBufferSource();
         src.buffer = noise;
-
-        // Apply Damping (Lowpass)
         const lpFilter = offCtx.createBiquadFilter();
         lpFilter.type = 'lowpass';
         lpFilter.frequency.value = dampFreq;
         lpFilter.Q.value = 0.5;
-
-        // Apply Low Cut (Highpass) to keep bass clean
         const hpFilter = offCtx.createBiquadFilter();
         hpFilter.type = 'highpass';
         hpFilter.frequency.value = parseFloat($('sl-rev-low').value) || 20;
@@ -495,22 +552,31 @@ document.addEventListener('DOMContentLoaded', () => {
         hpFilter.connect(offCtx.destination);
         src.start();
 
-        nodes.revConvolver.buffer = await offCtx.startRendering();
+        const irBuffer = await offCtx.startRendering();
+        nodes.revConvolver.buffer = irBuffer;
+
+        // Share buffer with 8D spatializer
+        if (nodes.eightDRevConvolver) nodes.eightDRevConvolver.buffer = irBuffer;
     }
 
     function updateReverbParams() {
         if (!audioCtx) return;
         const wet = parseFloat($('sl-rev-wet').value) / 100;
-
-        // Fix for Reverb Volume Drop: 
-        // 1. Keep Dry Gain at exactly 1.0 so original song detail isn't lost.
-        // 2. Adjust Wet Gain proportionally.
         nodes.revDry.gain.value = 1.0;
         nodes.revWet.gain.value = wet * 1.5;
-
         nodes.revWidth.setWidth(parseFloat($('sl-rev-stereo').value) / 100);
         nodes.revPreDelay.delayTime.value = parseFloat($('sl-rev-pre').value) / 1000;
         nodes.revLowCut.frequency.value = parseFloat($('sl-rev-low').value);
+    }
+
+    function updateEightDParams() {
+        if (!audioCtx || !nodes.eightDLfo) return;
+        nodes.eightDLfo.frequency.value = parseFloat($('sl-8d-speed').value);
+        nodes.eightDLfoGain.gain.value = parseFloat($('sl-8d-width').value) / 100;
+
+        const mix = parseFloat($('sl-8d-rev').value) / 100;
+        nodes.eightDRevDry.gain.value = 1.0 - (mix * 0.5); // Prevent clipping
+        nodes.eightDRevWet.gain.value = mix * 1.5;
     }
 
     function updateCompParams() {
@@ -535,7 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.flangFb.gain.value = parseFloat($('sl-flang-fb').value) / 100;
     }
 
-    const toggleMap = { 'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp', 'tgl-limit': 'limit', 'tgl-echo': 'echo', 'tgl-flanger': 'flanger', 'tgl-reverb': 'reverb', 'tgl-mono': 'mono', 'tgl-invert': 'invert' };
+    const toggleMap = { 'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp', 'tgl-limit': 'limit', 'tgl-echo': 'echo', 'tgl-flanger': 'flanger', 'tgl-reverb': 'reverb', 'tgl-mono': 'mono', 'tgl-invert': 'invert', 'tgl-8d': 'eightD' };
     Object.keys(toggleMap).forEach(id => { $(id).onchange = e => { fx[toggleMap[id]] = e.target.checked; routeAudio(); }; });
 
     // Speed & Pitch Switches
@@ -563,6 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('res-echo').onclick = () => { $('tgl-echo').checked = false; fx.echo = false; $('sl-echo-mix').value = 40; $('val-echo-mix').textContent = '40%'; $('sl-echo-time').value = 330; $('val-echo-time').textContent = '330 ms'; $('sl-echo-fb').value = 40; $('val-echo-fb').textContent = '40%'; updateEchoParams(); routeAudio(); };
     $('res-flanger').onclick = () => { $('tgl-flanger').checked = false; fx.flanger = false; $('sl-flang-rate').value = 0.5; $('val-flang-rate').textContent = '0.5 Hz'; $('sl-flang-depth').value = 20; $('val-flang-depth').textContent = '20%'; $('sl-flang-fb').value = 50; $('val-flang-fb').textContent = '50%'; updateFlangerParams(); routeAudio(); };
     $('res-reverb').onclick = () => { $('tgl-reverb').checked = false; fx.reverb = false; $('sl-rev-wet').value = 35; $('val-rev-wet').textContent = '35%'; $('sl-rev-stereo').value = 100; $('val-rev-stereo').textContent = '100%'; $('sl-rev-damp').value = 25; $('val-rev-damp').textContent = '25%'; $('sl-rev-room').value = 75; $('val-rev-room').textContent = '75%'; $('sl-rev-pre').value = 0; $('val-rev-pre').textContent = '0 ms'; $('sl-rev-low').value = 10; $('val-rev-low').textContent = '10 Hz'; updateReverbParams(); generateReverbIR(); routeAudio(); };
+    $('res-8d').onclick = () => { $('tgl-8d').checked = false; fx.eightD = false; $('sl-8d-speed').value = 0.12; $('val-8d-speed').textContent = '0.12 Hz'; $('sl-8d-width').value = 85; $('val-8d-width').textContent = '85%'; $('sl-8d-rev').value = 40; $('val-8d-rev').textContent = '40%'; updateEightDParams(); routeAudio(); };
 
     const eqPresets = { 'flat': [0, 0, 0, 0], 'bass': [6, 2, 0, 0], 'acoustic': [-2, 2, 4, 3] };
     $('eq-preset').onchange = (e) => { if (e.target.value === 'custom') return; const vals = eqPresets[e.target.value];['low', 'lmid', 'hmid', 'high'].forEach((b, i) => { $(`sl-eq-${b}`).value = vals[i]; $(`val-eq-${b}`).textContent = (vals[i] > 0 ? '+' : '') + vals[i] + ' dB'; if (audioCtx) nodes.eq[i].gain.value = vals[i]; }); };
@@ -579,45 +646,128 @@ document.addEventListener('DOMContentLoaded', () => {
     bindSlider('sl-echo-mix', 'val-echo-mix', '%', updateEchoParams); bindSlider('sl-echo-time', 'val-echo-time', ' ms', updateEchoParams); bindSlider('sl-echo-fb', 'val-echo-fb', '%', updateEchoParams);
     bindSlider('sl-flang-rate', 'val-flang-rate', ' Hz', updateFlangerParams); bindSlider('sl-flang-depth', 'val-flang-depth', '%', updateFlangerParams); bindSlider('sl-flang-fb', 'val-flang-fb', '%', updateFlangerParams);
     bindSlider('sl-rev-wet', 'val-rev-wet', '%', updateReverbParams); bindSlider('sl-rev-stereo', 'val-rev-stereo', '%', updateReverbParams); bindSlider('sl-rev-damp', 'val-rev-damp', '%', updateReverbParams, true); bindSlider('sl-rev-room', 'val-rev-room', '%', updateReverbParams, true); bindSlider('sl-rev-pre', 'val-rev-pre', ' ms', updateReverbParams); bindSlider('sl-rev-low', 'val-rev-low', ' Hz', updateReverbParams);
+    bindSlider('sl-8d-speed', 'val-8d-speed', ' Hz', updateEightDParams); bindSlider('sl-8d-width', 'val-8d-width', '%', updateEightDParams); bindSlider('sl-8d-rev', 'val-8d-rev', '%', updateEightDParams);
 
-    // ── DYNAMIC ASSET LOADING (With robust file:// Fallback) ──
+    // ── PLAYLIST MANAGEMENT ──
+    function createPlaylist(name) {
+        if (!name || name.trim() === '') return;
+        const newPl = { id: 'pl_' + Date.now(), name: name.trim(), trackIds: [], isFolder: false };
+        customPlaylists.push(newPl);
+        renderPlaylistsHome();
+    }
+
+    $('btn-create-playlist').onclick = () => {
+        const name = prompt("Enter playlist name:");
+        if (name) createPlaylist(name);
+    };
+
+    $('btn-back-playlists').onclick = () => {
+        activePlaylistId = null;
+        playlistDetail.style.display = 'none';
+        playlistsHome.style.display = 'block';
+    };
+
+    function renderPlaylistsHome() {
+        playlistCardsContainer.innerHTML = '';
+
+        // Favorites Playlist Card
+        const favCard = document.createElement('div');
+        favCard.className = 'playlist-card';
+        const favCount = trackList.filter(t => t.isFavorite).length;
+        favCard.innerHTML = `<div class="playlist-card-info"><h3>Favorites</h3><p>${favCount} tracks</p></div>`;
+        favCard.onclick = () => openPlaylistDetail('favorites', 'Favorites');
+        playlistCardsContainer.appendChild(favCard);
+
+        // Folders (Dynamically derived)
+        const foldersMap = {};
+        trackList.forEach(t => {
+            if (t.folderName) {
+                if (!foldersMap[t.folderName]) foldersMap[t.folderName] = 0;
+                foldersMap[t.folderName]++;
+            }
+        });
+        Object.keys(foldersMap).forEach(folder => {
+            const fCard = document.createElement('div');
+            fCard.className = 'playlist-card';
+            fCard.innerHTML = `<div class="playlist-card-info"><h3>${escapeHtml(folder)}</h3><p>${foldersMap[folder]} tracks (Folder)</p></div>`;
+            fCard.onclick = () => openPlaylistDetail('folder_' + folder, folder);
+            playlistCardsContainer.appendChild(fCard);
+        });
+
+        // Custom Playlists
+        customPlaylists.forEach(pl => {
+            const card = document.createElement('div');
+            card.className = 'playlist-card';
+            const count = trackList.filter(t => pl.trackIds.includes(t.id)).length;
+            card.innerHTML = `
+                <div class="playlist-card-info">
+                    <h3>${escapeHtml(pl.name)}</h3>
+                    <p>${count} tracks</p>
+                </div>
+                <button class="icon-btn delete-pl-btn" title="Delete Playlist" style="padding: 6px; z-index: 2;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+            `;
+
+            card.querySelector('.delete-pl-btn').onclick = (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete playlist "${pl.name}"?`)) {
+                    customPlaylists = customPlaylists.filter(p => p.id !== pl.id);
+                    renderPlaylistsHome();
+                }
+            };
+
+            card.onclick = () => openPlaylistDetail(pl.id, pl.name);
+            playlistCardsContainer.appendChild(card);
+        });
+    }
+
+    function openPlaylistDetail(id, title) {
+        activePlaylistId = id;
+        $('playlist-detail-title').textContent = title;
+        playlistsHome.style.display = 'none';
+        playlistDetail.style.display = 'block';
+        sortAndRenderTracks(); // Re-render for the active list
+    }
+
+    // ── DYNAMIC ASSET LOADING ──
     async function loadDefaultAssets() {
         try {
-            // Attempt to dynamically fetch and parse the assets directory
-            // Note: This only works if the app is served via a local web server (like VSCode Live Server).
             const response = await fetch('assets/');
             if (response.ok) {
                 const text = await response.text();
-                // Regex to find typical audio file extensions in directory listings
                 const matches = text.match(/href="([^"]+\.(mp3|wav|ogg|m4a|flac))"/gi);
                 if (matches && matches.length > 0) {
                     let audioFiles = matches.map(m => m.split('"')[1]).map(f => f.split('/').pop());
-                    audioFiles = [...new Set(audioFiles)]; // Remove duplicates
+                    audioFiles = [...new Set(audioFiles)];
                     trackList = audioFiles.map((filename, i) => ({
+                        id: 'trk_' + Date.now() + i,
                         title: decodeURIComponent(filename.replace(/\.[^/.]+$/, '')),
                         artist: 'Assets Directory',
                         url: 'assets/' + filename,
                         file: null, duration: 0, index: i, element: null,
-                        dateAdded: Date.now(), dateModified: Date.now(), albumArt: null, lyrics: null
+                        dateAdded: Date.now(), dateModified: Date.now(), albumArt: null, lyrics: null,
+                        isFavorite: false, folderName: 'Default Assets'
                     }));
 
                     searchBar.style.display = 'block';
                     emptyState.style.display = 'none';
                     sortAndRenderTracks();
-                    return; // Exit if dynamic fetch succeeded
+                    return;
                 }
             }
         } catch (e) {
-            console.log("Directory scraping unavailable (Likely running via file:// protocol). Falling back to direct predefined injection.");
+            console.log("Directory scraping unavailable. Falling back to predefined injection.");
         }
 
-        // --- FALLBACK (Always inject all 6 samples if dynamic fetch fails) ---
-        trackList = [1, 2, 3, 4, 5, 6].map(i => ({
+        trackList = [1, 2, 3, 4, 5, 6, 7, 8].map(i => ({
+            id: 'trk_' + Date.now() + i,
             title: `sample-${i}`,
             artist: 'Assets Directory',
             url: `assets/sample-${i}.mp3`,
             file: null, duration: 0, index: i - 1, element: null,
-            dateAdded: Date.now(), dateModified: Date.now(), albumArt: null, lyrics: null
+            dateAdded: Date.now(), dateModified: Date.now(), albumArt: null, lyrics: null,
+            isFavorite: false, folderName: 'Default Assets'
         }));
 
         searchBar.style.display = 'block';
@@ -634,7 +784,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const files = Array.from(e.target.files).filter(f => f.type.startsWith('audio/'));
         if (!files.length) return alert('No audio files found.');
         const now = Date.now();
-        trackList = files.map((file, i) => ({ title: file.name.replace(/\.[^/.]+$/, ''), artist: 'Local File', url: URL.createObjectURL(file), file: file, duration: 0, index: i, element: null, dateAdded: now, dateModified: file.lastModified || now, albumArt: null, lyrics: null }));
+        const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Local Folder';
+
+        const newTracks = files.map((file, i) => ({
+            id: 'trk_' + Math.random().toString(36).substr(2, 9),
+            title: file.name.replace(/\.[^/.]+$/, ''),
+            artist: 'Local File',
+            url: URL.createObjectURL(file),
+            file: file, duration: 0, index: trackList.length + i,
+            element: null, dateAdded: now, dateModified: file.lastModified || now,
+            albumArt: null, lyrics: null, isFavorite: false, folderName: folderName
+        }));
+
+        trackList = trackList.concat(newTracks);
         searchBar.style.display = 'block'; emptyState.style.display = 'none';
         extractAlbumArts(); sortAndRenderTracks(); cancelDrawer();
     };
@@ -643,7 +805,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = e.target.files[0];
         if (!file || !file.type.startsWith('audio/')) return alert('Please select an audio file.');
         const now = Date.now();
-        const newTrack = { title: file.name.replace(/\.[^/.]+$/, ''), artist: 'Local File', url: URL.createObjectURL(file), file: file, duration: 0, index: trackList.length, element: null, dateAdded: now, dateModified: file.lastModified || now, albumArt: null, lyrics: null };
+        const newTrack = {
+            id: 'trk_' + Math.random().toString(36).substr(2, 9),
+            title: file.name.replace(/\.[^/.]+$/, ''),
+            artist: 'Local File',
+            url: URL.createObjectURL(file),
+            file: file, duration: 0, index: trackList.length, element: null,
+            dateAdded: now, dateModified: file.lastModified || now, albumArt: null,
+            lyrics: null, isFavorite: false, folderName: null
+        };
         trackList.push(newTrack);
         searchBar.style.display = 'block'; emptyState.style.display = 'none';
         extractAlbumArtForTrack(newTrack); sortAndRenderTracks(); cancelDrawer();
@@ -688,21 +858,67 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'duration-asc': trackList.sort((a, b) => (a.duration || 0) - (b.duration || 0)); break;
             default: trackList.sort((a, b) => a.title.localeCompare(b.title));
         }
-        trackList.forEach((t, i) => t.index = i);
-        songListContainer.innerHTML = '';
 
-        trackList.forEach((track, idx) => {
+        let displayList = trackList;
+
+        // Filter based on active view/playlist
+        if (activePlaylistId === 'favorites') {
+            displayList = trackList.filter(t => t.isFavorite);
+        } else if (activePlaylistId && activePlaylistId.startsWith('folder_')) {
+            const fName = activePlaylistId.replace('folder_', '');
+            displayList = trackList.filter(t => t.folderName === fName);
+        } else if (activePlaylistId) {
+            const pl = customPlaylists.find(p => p.id === activePlaylistId);
+            if (pl) displayList = trackList.filter(t => pl.trackIds.includes(t.id));
+        }
+
+        const targetContainer = activePlaylistId ? playlistSongList : songListContainer;
+        targetContainer.innerHTML = '';
+
+        displayList.forEach((track) => {
+            const idx = trackList.indexOf(track); // Keep global index for audio playing
             const item = document.createElement('div');
             item.className = 'song-item';
-            item.innerHTML = `<div class="song-cover"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>
-                              <div class="song-info"><h3>${escapeHtml(track.title)}</h3><p>${escapeHtml(track.artist)}</p></div>
-                              <span class="song-duration">--:--</span>`;
+            if (currentTrackIndex === idx) item.classList.add('active-track');
 
-            item.onclick = async () => {
+            const imgIndex = (track.index % 7) + 1;
+            const imgSrc = track.albumArt ? track.albumArt : `assets/image-${imgIndex}.jpg`;
+            const heartColor = track.isFavorite ? 'var(--accent)' : 'var(--text-muted)';
+            const heartIcon = track.isFavorite ? filledHeart : outlineHeart;
+
+            item.innerHTML = `
+                <div class="song-cover">
+                    <img src="${imgSrc}" style="width:100%; height:100%; object-fit:cover;" onerror="this.outerHTML='<svg width=\\'24\\' height=\\'24\\' viewBox=\\'0 0 24 24\\' fill=\\'currentColor\\'><path d=\\'M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z\\'/></svg>'">
+                    <div class="playing-indicator" id="ind-${track.id}">
+                        ${isPlaying && currentTrackIndex === idx ? playIndicatorSvg : pausedIndicatorSvg}
+                    </div>
+                </div>
+                <div class="song-info"><h3>${escapeHtml(track.title)}</h3><p>${escapeHtml(track.artist)}</p></div>
+                <span class="song-duration">--:--</span>
+                <button class="icon-btn heart-btn" aria-label="Favorite" style="color: ${heartColor};">${heartIcon}</button>
+            `;
+
+            // Handle Track Click
+            item.onclick = async (e) => {
+                if (e.target.closest('.heart-btn')) return; // Ignore if clicking heart
                 await initAudioContext();
                 if (currentTrackIndex === idx) togglePlay(); else playTrack(idx);
             };
-            songListContainer.appendChild(item); track.element = item;
+
+            // Handle Heart Click
+            item.querySelector('.heart-btn').onclick = (e) => {
+                e.stopPropagation();
+                track.isFavorite = !track.isFavorite;
+                e.currentTarget.innerHTML = track.isFavorite ? filledHeart : outlineHeart;
+                e.currentTarget.style.color = track.isFavorite ? 'var(--accent)' : 'var(--text-muted)';
+
+                // If in favorites view and unfavorited, re-render to remove it
+                if (activePlaylistId === 'favorites' && !track.isFavorite) {
+                    sortAndRenderTracks();
+                }
+            };
+
+            targetContainer.appendChild(item); track.element = item;
 
             const temp = new Audio(track.url);
             temp.onloadedmetadata = () => {
@@ -719,8 +935,15 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTrackIndex = idx; const t = trackList[idx];
         audio.src = t.url; audio.load();
         nowPlayingTitle.textContent = t.title;
+
+        // Update styling classes
         document.querySelectorAll('.song-item').forEach(i => i.classList.remove('active-track'));
-        if (t.element) t.element.classList.add('active-track');
+        if (t.element) {
+            t.element.classList.add('active-track');
+            const ind = t.element.querySelector('.playing-indicator');
+            if (ind) ind.innerHTML = playIndicatorSvg;
+        }
+
         $('btn-download').disabled = false;
         await initAudioContext();
         audio.play().then(() => setPlayState(true)).catch(e => console.log(e));
@@ -740,6 +963,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const pauseIcons = document.querySelectorAll('.pause-icon, .np-pause-icon');
         playIcons.forEach(icon => icon.style.display = p ? 'none' : 'block');
         pauseIcons.forEach(icon => icon.style.display = p ? 'block' : 'none');
+
+        // Update list indicators
+        if (currentTrackIndex >= 0 && trackList[currentTrackIndex].element) {
+            const ind = trackList[currentTrackIndex].element.querySelector('.playing-indicator');
+            if (ind) ind.innerHTML = p ? playIndicatorSvg : pausedIndicatorSvg;
+        }
     }
 
     audio.ontimeupdate = () => {
@@ -750,7 +979,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     audio.onloadedmetadata = () => { totalTimeEl.textContent = formatTime(audio.duration); };
 
-    // Repeat logic update (Off -> All -> One)
     audio.onended = () => {
         if (repeatMode === 'one') {
             audio.currentTime = 0;
@@ -818,7 +1046,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentTrackIndex < 0 || !trackList[currentTrackIndex]) return;
 
         const pitchVal = parseFloat($('sl-pitch').value);
-        // Direct Download if no FX and playback rate is 1 and not Vinyl Mode
         if (!Object.values(fx).some(v => v) && audio.playbackRate === 1.0 && (pitchVal === 0 || vinylMode)) {
             const a = document.createElement('a');
             a.href = trackList[currentTrackIndex].url;
@@ -837,8 +1064,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
             const decoded = await tempCtx.decodeAudioData(buffer);
 
-            // Adjust length for playback rate and reverb tails
-            const length = (decoded.length / audio.playbackRate) + (fx.reverb || fx.echo ? tempCtx.sampleRate * 5 : 0);
+            const length = (decoded.length / audio.playbackRate) + (fx.reverb || fx.echo || fx.eightD ? tempCtx.sampleRate * 5 : 0);
             const offCtx = new OfflineAudioContext(decoded.numberOfChannels, length, tempCtx.sampleRate);
             const src = offCtx.createBufferSource(); src.buffer = decoded; src.playbackRate.value = audio.playbackRate;
 
@@ -850,6 +1076,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 const oDetail = offCtx.createBiquadFilter(); oDetail.type = 'peaking'; oDetail.frequency.value = 3200; oDetail.Q.value = 0.6; oDetail.gain.value = 2.5;
                 const oAir = offCtx.createBiquadFilter(); oAir.type = 'highshelf'; oAir.frequency.value = 10000; oAir.gain.value = 3.0;
                 curr.connect(oBass); oBass.connect(oMud); oMud.connect(oDetail); oDetail.connect(oAir); curr = oAir;
+            }
+
+            if (fx.eightD) {
+                const oPanner = offCtx.createStereoPanner();
+                const oLfo = offCtx.createOscillator();
+                oLfo.type = 'sine';
+                oLfo.frequency.value = parseFloat($('sl-8d-speed').value);
+                const oGain = offCtx.createGain();
+                oGain.gain.value = parseFloat($('sl-8d-width').value) / 100;
+                oLfo.connect(oGain);
+                oGain.connect(oPanner.pan);
+                oLfo.start(0);
+
+                const eightDRoot = offCtx.createGain();
+                curr.connect(oPanner);
+
+                const revGain = offCtx.createGain();
+                const mix = parseFloat($('sl-8d-rev').value) / 100;
+
+                if (nodes.revConvolver.buffer) {
+                    const oConv = offCtx.createConvolver();
+                    oConv.buffer = nodes.revConvolver.buffer;
+                    oPanner.connect(oConv);
+                    oConv.connect(revGain);
+                    revGain.gain.value = mix * 1.5;
+                }
+
+                const dryGain = offCtx.createGain();
+                dryGain.gain.value = 1.0 - (mix * 0.5);
+                oPanner.connect(dryGain);
+
+                dryGain.connect(eightDRoot);
+                revGain.connect(eightDRoot);
+                curr = eightDRoot;
             }
 
             if (fx.reverb && nodes.revConvolver.buffer) {
