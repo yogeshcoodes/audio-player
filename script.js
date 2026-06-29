@@ -20,22 +20,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressBar = $('progress-bar');
     const currentTimeEl = $('current-time');
     const totalTimeEl = $('total-time');
+    
+    // Both Footer and Overlay Canvas visualizers
     const visualizerCanvas = $('visualizer');
     const visualizerCtx = visualizerCanvas.getContext('2d');
+    const npVisualizerCanvas = $('np-visualizer');
+    const npVisualizerCtx = npVisualizerCanvas ? npVisualizerCanvas.getContext('2d') : null;
 
-    // Dynamically update the Normalizer UI attributes to cap at 0dB max and set default to -6dB
+    // Dynamically update the Normalizer UI attributes 
     const slNormTarget = $('sl-norm-target');
     const valNormTarget = $('val-norm-target');
     if (slNormTarget && valNormTarget) {
-        slNormTarget.min = -40;
+        slNormTarget.min = -24;
         slNormTarget.max = 0;
-        slNormTarget.value = -6;
-        valNormTarget.textContent = '-6 dB';
+        slNormTarget.value = -12;
+        valNormTarget.textContent = '-12 dB';
     }
 
     // SVG Icons
     const outlineHeart = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
     const filledHeart = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
+    const dotsIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>`;
     const playIndicatorSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
     const pausedIndicatorSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
 
@@ -45,8 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPlaying = false;
     let shuffleMode = false;
     let repeatMode = 'off';
-    let exportFormat = 'mp3'; 
+    let exportFormat = 'wav'; 
     let currentSort = 'name-asc';
+    let trackMenuTargetId = null; 
 
     // Playlists State
     let customPlaylists = [];
@@ -68,14 +74,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const fx = { normalizer: false, clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false, preamp: false, balance: false };
     let nodes = {};
 
-    // ── TRUE PEAK AGC NORMALIZER WORKLET (Fixed Over-boosting & Distortion) ──
+    // ── TRUE PEAK & RMS AGC NORMALIZER WORKLET (Fixed Over-boosting & Distortion) ──
     const agcWorkletCode = `
     class AGCProcessor extends AudioWorkletProcessor {
         constructor() {
             super();
-            this.targetLevel = Math.pow(10, -6 / 20); // Default -6dB
+            this.targetLevel = Math.pow(10, -12 / 20); // Default -12dB Target
             this.currentGain = 1.0;
-            this.env = 0.5; // Start assuming a moderately loud signal
+            this.rms = 0; 
             
             this.port.onmessage = (e) => {
                 if (e.data.targetDb !== undefined) {
@@ -91,42 +97,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const channels = input.length;
             const frames = input[0].length;
+            
+            // Calculate instantaneous block RMS
+            let sumSquare = 0;
+            for (let c = 0; c < channels; c++) {
+                for (let i = 0; i < frames; i++) {
+                    sumSquare += input[c][i] * input[c][i];
+                }
+            }
+            let blockRms = Math.sqrt(sumSquare / (frames * channels));
+
+            // Extremely slow decay for RMS window (avoids pumping on drums)
+            this.rms = 0.999 * this.rms + 0.001 * blockRms;
+            let safeRms = Math.max(this.rms, 0.001); 
+            
+            // Determine desired gain based on Target / RMS
+            let desiredGain = this.targetLevel / safeRms;
+            
+            // Allow larger boosts but restrict crazy peaks
+            desiredGain = Math.max(0.1, Math.min(desiredGain, 4.0)); 
 
             for (let i = 0; i < frames; i++) {
-                // Peak detection instead of RMS prevents massive drops between kicks
-                let maxMag = 0;
-                for (let c = 0; c < channels; c++) {
-                    let val = Math.abs(input[c][i]);
-                    if (val > maxMag) maxMag = val;
-                }
-
-                // Asymmetric envelope: Fast attack to catch peaks safely, extremely slow release
-                // to maintain consistent volume during quiet segments without pumping "like crazy"
-                if (maxMag > this.env) {
-                    this.env = this.env * 0.99 + maxMag * 0.01;
-                } else {
-                    this.env = this.env * 0.999995 + maxMag * 0.000005; 
-                }
+                // Smooth gain transition at audio rate
+                this.currentGain += 0.001 * (desiredGain - this.currentGain);
                 
-                let safeEnv = Math.max(this.env, 0.02); 
-                let desiredGain = this.targetLevel / safeEnv;
-
-                // STRICT LIMITS: Max +3dB boost, preventing distortion and crazy loud quiet sections
-                desiredGain = Math.max(0.1, Math.min(desiredGain, 1.4));
-
-                // Smooth audio-rate gain application
-                this.currentGain += 0.0002 * (desiredGain - this.currentGain);
-
                 for (let c = 0; c < channels; c++) {
                     let outVal = input[c][i] * this.currentGain;
                     
-                    // Safety soft-clipper to prevent digital harshness if it ever exceeds 0.98
-                    if (outVal > 0.98) {
-                        outVal = 0.98 + 0.02 * Math.tanh((outVal - 0.98) * 50);
-                    } else if (outVal < -0.98) {
-                        outVal = -0.98 + 0.02 * Math.tanh((outVal + 0.98) * 50);
+                    // Soft clipping safety net to prevent any accidental distortion
+                    if (outVal > 0.95) {
+                        outVal = 0.95 + 0.05 * Math.tanh((outVal - 0.95) * 20);
+                    } else if (outVal < -0.95) {
+                        outVal = -0.95 + 0.05 * Math.tanh((outVal + 0.95) * 20);
                     }
-
                     output[c][i] = outVal;
                 }
             }
@@ -139,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Apply default format styling
     document.querySelectorAll('.format-btn').forEach(b => {
         b.classList.remove('active');
-        if (b.dataset.format === 'mp3') b.classList.add('active');
+        if (b.dataset.format === 'wav') b.classList.add('active'); // default
     });
 
     // ── INDEXED DB FOR FOLDER PERSISTENCE ──
@@ -185,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── CUSTOM MODAL SYSTEM ──
     let modalResolve = null;
-
     function showModal(title, options = {}) {
         return new Promise((resolve) => {
             modalResolve = resolve;
@@ -322,7 +324,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sortBtnText = $('sort-btn-text');
     const sortDropdown = $('sort-dropdown');
     sortBtn.onclick = (e) => { e.stopPropagation(); sortDropdown.classList.toggle('hidden'); };
-    document.addEventListener('click', () => sortDropdown.classList.add('hidden'));
+    document.addEventListener('click', () => { 
+        sortDropdown.classList.add('hidden');
+        $('track-options-menu').classList.add('hidden'); // Also close track options menu
+    });
 
     sortDropdown.querySelectorAll('.dropdown-option').forEach(opt => {
         opt.onclick = (e) => {
@@ -337,6 +342,45 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const defaultSortOpt = sortDropdown.querySelector('[data-value="name-asc"]');
     if (defaultSortOpt) defaultSortOpt.classList.add('active-option');
+
+    // Track Options Menu logic
+    $('opt-play-next').onclick = (e) => {
+        e.stopPropagation();
+        $('track-options-menu').classList.add('hidden');
+        showToast("Track queued to play next.");
+        // Basic queue next implementation
+        if (trackMenuTargetId) {
+            const idx = trackList.findIndex(t => t.id === trackMenuTargetId);
+            if (idx >= 0 && idx !== currentTrackIndex) {
+                // Move item array logic would go here if full queue system existed
+                const t = trackList.splice(idx, 1)[0];
+                trackList.splice(currentTrackIndex + 1, 0, t);
+                sortAndRenderTracks(); // Redraw UI
+            }
+        }
+    };
+    
+    $('opt-add-playlist').onclick = (e) => {
+        e.stopPropagation();
+        $('track-options-menu').classList.add('hidden');
+        if (!trackMenuTargetId || customPlaylists.length === 0) {
+            showToast(customPlaylists.length === 0 ? "No playlists exist. Create one first!" : "Select track error.");
+            return;
+        }
+        
+        let plNames = customPlaylists.map(p => p.name).join(', ');
+        showPrompt(`Add to Playlist (${plNames}):`, customPlaylists[0].name).then(name => {
+            if (name) {
+                let pList = customPlaylists.find(p => p.name.toLowerCase() === name.toLowerCase());
+                if(pList) {
+                    if (!pList.trackIds.includes(trackMenuTargetId)) {
+                        pList.trackIds.push(trackMenuTargetId);
+                        showToast(`Added to ${pList.name}`);
+                    } else showToast("Already in playlist");
+                } else showToast("Playlist not found", "error");
+            }
+        });
+    };
 
     // Export Format Selector
     const formatBtns = document.querySelectorAll('.format-btn');
@@ -593,34 +637,41 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.balancePan = ctx.createStereoPanner();
         nodes.balancePan.pan.value = 0;
 
+        // --- REVISED: Clearity+ (Spacious, Natural, Non-Fatiguing Atmos Style) ---
         nodes.clrBassSmooth = ctx.createBiquadFilter();
         nodes.clrBassSmooth.type = 'lowshelf';
-        nodes.clrBassSmooth.frequency.value = 80;
-        nodes.clrBassSmooth.gain.value = 2.0;
+        nodes.clrBassSmooth.frequency.value = 60; // Gentle sub-warmth
+        nodes.clrBassSmooth.gain.value = 1.5;
+        
         nodes.clrMudCut = ctx.createBiquadFilter();
         nodes.clrMudCut.type = 'peaking';
-        nodes.clrMudCut.frequency.value = 220;
-        nodes.clrMudCut.Q.value = 0.7;
-        nodes.clrMudCut.gain.value = -2.0;
+        nodes.clrMudCut.frequency.value = 250; 
+        nodes.clrMudCut.Q.value = 0.8;
+        nodes.clrMudCut.gain.value = -1.5; // Clear muddiness safely
+
         nodes.clrDetailBoost = ctx.createBiquadFilter();
         nodes.clrDetailBoost.type = 'peaking';
-        nodes.clrDetailBoost.frequency.value = 3200;
-        nodes.clrDetailBoost.Q.value = 0.6;
-        nodes.clrDetailBoost.gain.value = 2.5;
+        nodes.clrDetailBoost.frequency.value = 4000;
+        nodes.clrDetailBoost.Q.value = 0.5;
+        nodes.clrDetailBoost.gain.value = -1.0; // DIP harshness slightly to prevent fatigue
+
         nodes.clrAirShelf = ctx.createBiquadFilter();
         nodes.clrAirShelf.type = 'highshelf';
-        nodes.clrAirShelf.frequency.value = 10000;
-        nodes.clrAirShelf.gain.value = 3.0;
+        nodes.clrAirShelf.frequency.value = 12000; // Breath & air
+        nodes.clrAirShelf.gain.value = 2.0;
+
         nodes.clrNormalizer = ctx.createDynamicsCompressor();
         nodes.clrNormalizer.threshold.value = -22;
         nodes.clrNormalizer.knee.value = 12;
         nodes.clrNormalizer.ratio.value = 1.4;
         nodes.clrNormalizer.attack.value = 0.02;
         nodes.clrNormalizer.release.value = 0.15;
+        
         nodes.clrWidth = createStereoWidthNode(ctx);
-        nodes.clrWidth.setWidth(1.35);
+        nodes.clrWidth.setWidth(1.4); // Enhanced realistic width
+        
         nodes.clrAntiDistort = ctx.createGain();
-        nodes.clrAntiDistort.gain.value = 0.78;
+        nodes.clrAntiDistort.gain.value = 0.85;
 
         nodes.clrBassSmooth.connect(nodes.clrMudCut);
         nodes.clrMudCut.connect(nodes.clrDetailBoost);
@@ -1065,8 +1116,8 @@ document.addEventListener('DOMContentLoaded', () => {
     $('res-normalizer').onclick = () => {
         $('tgl-normalizer').checked = false;
         fx.normalizer = false;
-        $('sl-norm-target').value = -6;
-        $('val-norm-target').textContent = '-6 dB';
+        $('sl-norm-target').value = -12;
+        $('val-norm-target').textContent = '-12 dB';
         updateNormalizerParams();
         routeAudio();
     };
@@ -1368,6 +1419,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.showDirectoryPicker) {
             const handle = await getHandle();
             if (handle) {
+                try {
+                    // Ask browser for read permission (auto-resolves if already granted in this session)
+                    const perm = await handle.queryPermission({ mode: 'read' });
+                    if (perm === 'granted') {
+                        // Automatically restore tracks without extra clicks
+                        await loadTracksFromHandle(handle);
+                        return;
+                    } 
+                } catch(e) {}
+                
+                // If it needs user interaction to restore permissions
                 const btn = document.createElement('button');
                 btn.className = 'drawer-btn';
                 btn.style.marginTop = '15px';
@@ -1689,12 +1751,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="song-info"><h3>${escapeHtml(track.title)}</h3><p>${escapeHtml(track.artist)}</p></div>
-                <span class="song-duration">${track.duration ? formatTime(track.duration) : '--:--'}</span>
                 <button class="icon-btn heart-btn" aria-label="Favorite" style="color: ${heartColor};">${heartIcon}</button>
+                <button class="icon-btn more-btn" aria-label="Options">${dotsIcon}</button>
             `;
 
             item.onclick = async (e) => {
-                if (e.target.closest('.heart-btn')) return;
+                if (e.target.closest('.heart-btn') || e.target.closest('.more-btn')) return;
                 await initAudioContext();
                 if (currentTrackIndex === idx) togglePlay();
                 else playTrack(idx);
@@ -1709,6 +1771,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     sortAndRenderTracks();
                 }
             };
+            
+            // 3 Dots Context Menu
+            item.querySelector('.more-btn').onclick = (e) => {
+                e.stopPropagation();
+                trackMenuTargetId = track.id;
+                
+                const menu = $('track-options-menu');
+                menu.classList.remove('hidden');
+                
+                // Positioning
+                const rect = e.currentTarget.getBoundingClientRect();
+                menu.style.top = (rect.bottom + window.scrollY) + 'px';
+                menu.style.left = Math.min((rect.right - 150), window.innerWidth - 160) + 'px';
+            };
 
             fragment.appendChild(item);
             track.element = item;
@@ -1717,10 +1793,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const temp = new Audio();
                 temp.addEventListener('loadedmetadata', () => {
                     track.duration = temp.duration;
-                    if (track.element) {
-                        const durEl = track.element.querySelector('.song-duration');
-                        if (durEl) durEl.textContent = formatTime(track.duration);
-                    }
                 });
                 temp.src = track.url;
             }
@@ -1749,13 +1821,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── PLAYER CONTROL ──
+    const updateTitleScroll = () => {
+        const el = $('now-playing-title');
+        el.classList.remove('scrolling-text');
+        
+        // Resetting layout briefly to accurately measure width without animation
+        el.style.display = 'inline-block'; 
+        const isOverflowing = el.scrollWidth > el.parentElement.clientWidth;
+        
+        if (isOverflowing) {
+            el.classList.add('scrolling-text');
+        }
+    };
+
     async function playTrack(idx) {
         if (idx < 0 || idx >= trackList.length) return;
         currentTrackIndex = idx;
         const t = trackList[idx];
         audio.src = t.url;
         audio.load();
+        
         nowPlayingTitle.textContent = t.title;
+        // Evaluate scrolling after a tiny paint cycle
+        requestAnimationFrame(() => updateTitleScroll());
+
         document.querySelectorAll('.song-item').forEach(i => i.classList.remove('active-track'));
         if (t.element) {
             t.element.classList.add('active-track');
@@ -1856,26 +1945,41 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.btn-shuffle, .np-btn-shuffle').forEach(btn => btn.onclick = toggleShuffle);
     document.querySelectorAll('.btn-repeat, .np-btn-repeat').forEach(btn => btn.onclick = toggleRepeat);
 
-    // Visualizer
+    // Visualizer (Drawn to Both Canvases)
     function drawVisualizer() {
         requestAnimationFrame(drawVisualizer);
         if (!analyserNode) return;
-        const w = visualizerCanvas.width,
-            h = visualizerCanvas.height,
-            data = new Uint8Array(analyserNode.frequencyBinCount);
+        
+        const data = new Uint8Array(analyserNode.frequencyBinCount);
         analyserNode.getByteFrequencyData(data);
-        visualizerCtx.clearRect(0, 0, w, h);
-        visualizerCtx.fillStyle = getComputedStyle(body).getPropertyValue('--accent').trim();
-        visualizerCtx.globalAlpha = 0.6;
-        for (let i = 0; i < 64; i++) {
-            let barH = Math.max(3, (data[i] / 255) * h);
-            visualizerCtx.beginPath();
-            visualizerCtx.roundRect(i * (w / 64), h - barH, (w / 64) - 2, barH, 4);
-            visualizerCtx.fill();
+        const activeColor = getComputedStyle(body).getPropertyValue('--accent').trim();
+
+        const drawBars = (ctx, canvasEl) => {
+            if (!ctx) return;
+            const w = canvasEl.width;
+            const h = canvasEl.height;
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = activeColor;
+            ctx.globalAlpha = 0.6;
+            for (let i = 0; i < 64; i++) {
+                let barH = Math.max(3, (data[i] / 255) * h);
+                ctx.beginPath();
+                ctx.roundRect(i * (w / 64), h - barH, (w / 64) - 2, barH, 4);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+        };
+
+        drawBars(visualizerCtx, visualizerCanvas);
+        if ($('now-playing-overlay').classList.contains('open')) {
+            drawBars(npVisualizerCtx, npVisualizerCanvas);
         }
-        visualizerCtx.globalAlpha = 1.0;
     }
     drawVisualizer();
+
+    window.addEventListener('resize', () => {
+        updateTitleScroll(); 
+    });
 
     // Export Logic
     $('btn-download').onclick = async () => {
@@ -1942,22 +2046,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fx.clarity) {
                 const oBass = offCtx.createBiquadFilter();
                 oBass.type = 'lowshelf';
-                oBass.frequency.value = 80;
-                oBass.gain.value = 2.0;
+                oBass.frequency.value = 60;
+                oBass.gain.value = 1.5;
                 const oMud = offCtx.createBiquadFilter();
                 oMud.type = 'peaking';
-                oMud.frequency.value = 220;
-                oMud.Q.value = 0.7;
-                oMud.gain.value = -2.0;
+                oMud.frequency.value = 250;
+                oMud.Q.value = 0.8;
+                oMud.gain.value = -1.5;
                 const oDetail = offCtx.createBiquadFilter();
                 oDetail.type = 'peaking';
-                oDetail.frequency.value = 3200;
-                oDetail.Q.value = 0.6;
-                oDetail.gain.value = 2.5;
+                oDetail.frequency.value = 4000;
+                oDetail.Q.value = 0.5;
+                oDetail.gain.value = -1.0; 
                 const oAir = offCtx.createBiquadFilter();
                 oAir.type = 'highshelf';
-                oAir.frequency.value = 10000;
-                oAir.gain.value = 3.0;
+                oAir.frequency.value = 12000;
+                oAir.gain.value = 2.0;
                 curr.connect(oBass);
                 oBass.connect(oMud);
                 oMud.connect(oDetail);
@@ -2026,49 +2130,83 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(progInterval);
             btn.style.setProperty('--dl-progress', '100%');
 
-            let nCh = rendered.numberOfChannels,
-                len = rendered.length * nCh * 2 + 44,
-                out = new ArrayBuffer(len),
-                view = new DataView(out),
-                chs = [],
-                offset = 0,
-                pos = 0;
-            const set16 = d => {
-                view.setUint16(pos, d, true);
-                pos += 2;
-            };
-            const set32 = d => {
-                view.setUint32(pos, d, true);
-                pos += 4;
-            };
-            set32(0x46464952);
-            set32(len - 8);
-            set32(0x45564157);
-            set32(0x20746d66);
-            set32(16);
-            set16(1);
-            set16(nCh);
-            set32(rendered.sampleRate);
-            set32(rendered.sampleRate * 2 * nCh);
-            set16(nCh * 2);
-            set16(16);
-            set32(0x61746164);
-            set32(len - pos - 4);
-            for (let i = 0; i < nCh; i++) chs.push(rendered.getChannelData(i));
-            while (pos < len) {
-                for (let i = 0; i < nCh; i++) {
-                    let s = Math.max(-1, Math.min(1, chs[i][offset]));
-                    view.setInt16(pos, s < 0 ? s * 32768 : s * 32767, true);
-                    pos += 2;
+            let nCh = rendered.numberOfChannels;
+            
+            // True LAME MP3 EXPORT LOGIC
+            if (exportFormat === 'mp3' && window.lamejs) {
+                const lameEnc = new lamejs.Mp3Encoder(nCh, rendered.sampleRate, 192); // 192kbps
+                const mp3Data = [];
+                const samples = rendered.length;
+                const sampleBlockSize = 1152; // Needs to be multiple of 576
+                
+                let left = rendered.getChannelData(0);
+                let right = nCh > 1 ? rendered.getChannelData(1) : left;
+                
+                // Int16 Conversions needed for LameJS
+                let leftInt = new Int16Array(samples);
+                let rightInt = new Int16Array(samples);
+                
+                for(let i = 0; i < samples; i++) {
+                    leftInt[i] = left[i] < 0 ? left[i] * 32768 : left[i] * 32767;
+                    rightInt[i] = right[i] < 0 ? right[i] * 32768 : right[i] * 32767;
                 }
-                offset++;
-            }
+                
+                for(let i = 0; i < samples; i += sampleBlockSize) {
+                    let leftChunk = leftInt.subarray(i, i + sampleBlockSize);
+                    let rightChunk = rightInt.subarray(i, i + sampleBlockSize);
+                    let mp3buf = lameEnc.encodeBuffer(leftChunk, rightChunk);
+                    if (mp3buf.length > 0) mp3Data.push(mp3buf);
+                }
+                
+                let mp3buf = lameEnc.flush(); 
+                if (mp3buf.length > 0) mp3Data.push(mp3buf);
+                
+                const blob = new Blob(mp3Data, { type: 'audio/mp3' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `Processed_${trackList[currentTrackIndex].title}.mp3`;
+                a.click();
+            } 
+            else {
+                // FALLBACK & DEFAULT WAV EXPORT LOGIC
+                let len = rendered.length * nCh * 2 + 44,
+                    out = new ArrayBuffer(len),
+                    view = new DataView(out),
+                    chs = [],
+                    offset = 0,
+                    pos = 0;
+                    
+                const set16 = d => { view.setUint16(pos, d, true); pos += 2; };
+                const set32 = d => { view.setUint32(pos, d, true); pos += 4; };
+                
+                set32(0x46464952); // "RIFF"
+                set32(len - 8);
+                set32(0x45564157); // "WAVE"
+                set32(0x20746d66); // "fmt "
+                set32(16);
+                set16(1);
+                set16(nCh);
+                set32(rendered.sampleRate);
+                set32(rendered.sampleRate * 2 * nCh);
+                set16(nCh * 2);
+                set16(16);
+                set32(0x61746164); // "data"
+                set32(len - pos - 4);
+                for (let i = 0; i < nCh; i++) chs.push(rendered.getChannelData(i));
+                while (pos < len) {
+                    for (let i = 0; i < nCh; i++) {
+                        let s = Math.max(-1, Math.min(1, chs[i][offset]));
+                        view.setInt16(pos, s < 0 ? s * 32768 : s * 32767, true);
+                        pos += 2;
+                    }
+                    offset++;
+                }
 
-            const ext = exportFormat === 'mp3' ? 'mp3' : exportFormat === 'flac' ? 'flac' : 'wav';
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([out], { type: 'audio/wav' }));
-            a.download = `Processed_${trackList[currentTrackIndex].title}.${ext}`;
-            a.click();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([out], { type: 'audio/wav' }));
+                a.download = `Processed_${trackList[currentTrackIndex].title}.wav`;
+                a.click();
+            }
             tempCtx.close();
         } catch (e) {
             console.error(e);

@@ -609,20 +609,32 @@ main {
     text-overflow: ellipsis;
 }
 
-.heart-btn {
-    margin-left: auto;
+.heart-btn,
+.more-btn {
     z-index: 2;
     padding: 6px;
     transition: color 0.2s;
+    color: var(--text-muted);
 }
 
-.heart-btn svg {
+.heart-btn {
+    margin-left: auto;
+}
+
+.more-btn {
+    margin-left: 2px;
+}
+
+.heart-btn svg,
+.more-btn svg {
     width: 18px;
     height: 18px;
 }
 
-.heart-btn:hover {
+.heart-btn:hover,
+.more-btn:hover {
     transform: scale(1.1);
+    color: var(--text-main);
 }
 
 /* DSP Modules */
@@ -805,7 +817,7 @@ footer {
     background: var(--bg-app);
     position: relative;
     padding: 6px 12px 4px;
-    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     z-index: 20;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.03);
@@ -850,7 +862,8 @@ footer {
     transition: background 0.15s linear;
 }
 
-#visualizer {
+#visualizer,
+#np-visualizer {
     width: 100%;
     height: 22px;
     border-radius: 6px;
@@ -859,16 +872,40 @@ footer {
     opacity: 0.85;
 }
 
+/* Title Marquee Replacements */
 .now-playing-container {
+    margin: 0 auto 4px auto;
     text-align: center;
-    margin-bottom: 4px;
+    width: 100%;
+    max-width: 260px;
+    overflow: hidden;
+    white-space: nowrap;
+    position: relative;
+    /* Soft fading edges for scrolling text */
+    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
 }
 
 .now-playing-text {
     font-size: 0.8rem;
     font-weight: 500;
     letter-spacing: -0.01em;
-    padding-top: 2px;
+    padding: 2px 10px 0;
+    display: inline-block;
+}
+
+.scrolling-text {
+    animation: scrollText 8s linear infinite;
+}
+
+@keyframes scrollText {
+    0% {
+        transform: translateX(100%);
+    }
+
+    100% {
+        transform: translateX(-100%);
+    }
 }
 
 .progress-container {
@@ -878,7 +915,7 @@ footer {
     font-size: 0.7rem;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
-    margin-bottom: 6px;
+    margin-bottom: 12px;
     font-weight: 500;
 }
 
@@ -960,26 +997,21 @@ footer {
 
 .np-overlay-content {
     flex: 1;
-    padding: 0 16px 5vh;
+    padding: 20px 16px 5vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
-    gap: 3vh;
+    justify-content: center;
+    /* Ensures centered responsive look */
+    gap: 4vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }
 
-.np-overlay-content::before,
-.np-overlay-content::after {
-    content: "";
-    margin: auto;
-}
-
 .np-art-container {
     width: 100%;
-    max-width: 280px;
-    max-height: 280px;
+    max-width: 320px;
+    max-height: 320px;
     aspect-ratio: 1 / 1;
     border-radius: 20px;
     overflow: hidden;
@@ -1010,7 +1042,7 @@ footer {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
     flex-shrink: 0;
 }
 
@@ -1270,7 +1302,7 @@ footer {
     }
 
     .now-playing-container {
-        margin-bottom: 8px;
+        max-width: 320px;
     }
 
     .now-playing-text {
@@ -1294,13 +1326,13 @@ footer {
     }
 
     .np-overlay-content {
-        gap: 4vh;
+        gap: 5vh;
         padding: 0 24px 5vh;
     }
 
     .np-art-container {
-        max-width: 300px;
-        max-height: 300px;
+        max-width: 340px;
+        max-height: 340px;
     }
 
     .np-track-info h2 {
@@ -1325,39 +1357,6 @@ footer {
     }
 }
 
-@media (min-width: 1024px) {
-    header {
-        padding: 16px 48px 0;
-    }
-
-    .tabs {
-        gap: 18px;
-    }
-
-    .tabs button {
-        font-size: 1rem;
-    }
-
-    main {
-        padding: 0 48px;
-    }
-
-    footer {
-        padding: 12px 48px 10px;
-        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-    }
-
-    .np-art-container {
-        max-width: 340px;
-        max-height: 340px;
-    }
-
-    .np-controls .play-btn {
-        width: 72px;
-        height: 72px;
-    }
-}
-
 /* Small phone optimizations */
 @media (max-width: 380px) {
     .icon-btn {
@@ -1371,29 +1370,26 @@ footer {
         height: 32px;
     }
 
-    #btn-download svg {
-        width: 18px;
-        height: 18px;
-    }
-
     .tabs {
         gap: 6px;
         margin-left: 0.2rem;
     }
 
     .tabs button {
-        font-size: 0.92rem;
-        padding: 6px 5px;
+        /* Made tabs more readable on small phones */
+        font-size: 1.05rem;
+        padding: 8px 6px;
     }
 
     .np-overlay-content {
-        gap: 2vh;
-        padding: 0 12px 3vh;
+        gap: 3vh;
+        padding: 10px 12px 3vh;
     }
 
     .np-art-container {
-        max-width: 220px;
-        max-height: 220px;
+        /* Made Album art much bigger */
+        max-width: 280px;
+        max-height: 280px;
     }
 
     .np-controls .play-btn {
@@ -1401,17 +1397,8 @@ footer {
         height: 48px;
     }
 
-    .np-controls .play-btn svg {
-        width: 26px;
-        height: 26px;
-    }
-
     .np-track-info h2 {
-        font-size: 1rem;
-    }
-
-    .np-track-info p {
-        font-size: 0.75rem;
+        font-size: 1.05rem;
     }
 
     .np-lyrics-display {
@@ -1419,10 +1406,7 @@ footer {
         font-size: 0.75rem;
     }
 
-    .np-controls {
-        max-width: 240px;
-    }
-
+    .np-controls,
     .controls {
         max-width: 240px;
     }
@@ -1430,84 +1414,5 @@ footer {
     .play-btn {
         width: 40px;
         height: 40px;
-    }
-
-    .play-btn svg {
-        width: 24px;
-        height: 24px;
-    }
-
-    footer {
-        padding: 4px 8px 2px;
-        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-    }
-
-    .progress-container {
-        gap: 6px;
-        font-size: 0.65rem;
-        margin-bottom: 4px;
-    }
-
-    .now-playing-text {
-        font-size: 0.72rem;
-    }
-
-    #visualizer {
-        height: 18px;
-        margin-bottom: 2px;
-    }
-
-    .drawer {
-        width: 260px;
-        max-width: 90vw;
-        padding: 16px 12px 20px;
-    }
-
-    .drawer-btn {
-        padding: 12px;
-        font-size: 0.85rem;
-    }
-}
-
-/* Short screen adjustments */
-@media (max-height: 700px) {
-    .np-overlay-content {
-        gap: 2vh;
-        padding-top: 10px;
-        justify-content: flex-start;
-    }
-
-    .np-overlay-content::before,
-    .np-overlay-content::after {
-        display: none;
-    }
-
-    .np-art-container {
-        max-width: 180px;
-        max-height: 180px;
-    }
-
-    .np-controls .play-btn {
-        width: 48px;
-        height: 48px;
-    }
-
-    .np-controls .play-btn svg {
-        width: 26px;
-        height: 26px;
-    }
-
-    .np-lyrics-display {
-        max-height: 70px;
-        font-size: 0.75rem;
-        padding: 8px;
-    }
-
-    .np-track-info h2 {
-        font-size: 1rem;
-    }
-
-    .np-overlay-handle {
-        margin: 6px auto 4px;
     }
 }
