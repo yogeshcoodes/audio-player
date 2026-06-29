@@ -33,7 +33,7 @@
                         <span class="slider round"></span>
                     </label>
                 </div>
-                <div class="drawer-section" style="flex-direction: column; align-items: stretch; gap: 16px;">
+                <div class="drawer-section drawer-col-stretch">
                     <button id="btn-open-folder" class="drawer-btn">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -43,8 +43,7 @@
                     </button>
                     <input type="file" id="folder-input" webkitdirectory directory multiple hidden>
 
-                    <button id="btn-open-file" class="drawer-btn"
-                        style="background:var(--bg-hover);color:var(--text-main);">
+                    <button id="btn-open-file" class="drawer-btn btn-secondary">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -54,7 +53,7 @@
                     </button>
                     <input type="file" id="file-input" accept="audio/*" multiple hidden>
                 </div>
-                <div class="drawer-section" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+                <div class="drawer-section drawer-col-start">
                     <label class="drawer-label">Sort library by</label>
                     <div class="custom-select-wrapper">
                         <button id="sort-btn" class="custom-select-btn">
@@ -76,7 +75,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="drawer-section" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+                <div class="drawer-section drawer-col-start">
                     <label class="drawer-label">Export Format</label>
                     <div class="format-toggle-group">
                         <button class="format-btn active" data-format="wav">WAV</button>
@@ -115,10 +114,10 @@
 
         <main id="main-content">
             <div id="songs-view" class="view active-view">
-                <div id="search-bar" class="search-bar" style="display: none;">
+                <div id="search-bar" class="search-bar">
                     <input type="text" id="search-input" placeholder="Search tracks..." autocomplete="off">
                 </div>
-                <div class="empty-view initial-message" id="empty-state" style="display: none;">
+                <div class="empty-view initial-message" id="empty-state">
                     <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
                         stroke-linecap="round">
                         <path d="M9 18V5l12-2v13" />
@@ -145,18 +144,16 @@
                     <div id="playlists-container" class="playlist-cards">
                     </div>
                 </div>
-                <div id="playlist-detail" style="display: none;">
+                <div id="playlist-detail">
                     <div class="playlist-view-header">
-                        <button id="btn-back-playlists" class="icon-btn" style="margin-left:-12px;">
+                        <button id="btn-back-playlists" class="icon-btn ml-n12">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="19" y1="12" x2="5" y2="12"></line>
                                 <polyline points="12 19 5 12 12 5"></polyline>
                             </svg>
                         </button>
-                        <h2 id="playlist-detail-title"
-                            style="flex:1; margin-left:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            Playlist</h2>
+                        <h2 id="playlist-detail-title" class="flex-1-ml-8-ellipsis">Playlist</h2>
                     </div>
                     <div id="playlist-song-list" class="song-list"></div>
                 </div>
@@ -179,22 +176,19 @@
                     </div>
                     <div class="fx-body always-open">
                         <div class="slider-group">
-                            <div class="slider-header"
-                                style="justify-content: space-between; display: flex; width: 100%;">
+                            <div class="slider-header slider-header-full">
                                 <span>Vinyl Mode</span>
                                 <label class="switch"><input type="checkbox" id="tgl-vinyl" checked><span
                                         class="slider round"></span></label>
                             </div>
-                            <p
-                                style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; margin-top: -6px;">
-                                Links tempo & pitch</p>
+                            <p class="text-sm-muted-mb">Links tempo & pitch</p>
                         </div>
                         <div class="slider-group">
                             <div class="slider-header"><span>Tempo (Playback Speed)</span><span
                                     id="val-tempo">1.00x</span></div>
                             <input type="range" id="sl-tempo" min="0.5" max="2.0" value="1.0" step="0.01">
                         </div>
-                        <div class="slider-group" id="pitch-group" style="opacity: 0.4; pointer-events: none;">
+                        <div class="slider-group opacity-40-no-pointer" id="pitch-group">
                             <div class="slider-header"><span>Independent Pitch (Semitones)</span><span
                                     id="val-pitch">0.0</span></div>
                             <input type="range" id="sl-pitch" min="-12" max="12" value="0" step="0.5">
@@ -209,36 +203,6 @@
                             <button class="reset-btn" id="res-clarity" title="Reset Clearity+"></button>
                             <label class="switch"><input type="checkbox" id="tgl-clarity"><span
                                     class="slider round"></span></label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="fx-module expandable">
-                    <div class="fx-header">
-                        <div class="fx-title">
-                            Normalizer
-                            <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </div>
-                        <div class="fx-controls">
-                            <button class="reset-btn" id="res-normalizer" title="Reset Normalizer">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                                    <polyline points="3 3 3 8 8 8" />
-                                </svg>
-                            </button>
-                            <label class="switch"><input type="checkbox" id="tgl-normalizer"><span
-                                    class="slider round"></span></label>
-                        </div>
-                    </div>
-                    <div class="fx-body">
-                        <div class="slider-group">
-                            <div class="slider-header"><span>Target Level</span><span id="val-norm-target">-12 dB</span>
-                            </div>
-                            <input type="range" id="sl-norm-target" min="-24" max="0" value="-12" step="1">
                         </div>
                     </div>
                 </div>
@@ -627,7 +591,7 @@
             <div class="np-overlay-handle"></div>
             <div class="np-overlay-content">
                 <div class="np-art-container" id="np-art-container">
-                    <img id="np-album-art" src="" alt="Album Art" style="display:none;">
+                    <img id="np-album-art" src="" alt="Album Art">
                     <div id="np-art-placeholder" class="np-art-placeholder">
                         <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor" opacity="0.4">
                             <path
@@ -661,11 +625,10 @@
                             </svg>
                         </button>
                         <button class="play-btn np-btn-play" aria-label="Play">
-                            <svg class="np-play-icon" width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
+                            <svg class="np-play-icon play-icon" width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M8 5v14l11-7z" />
                             </svg>
-                            <svg class="np-pause-icon" width="36" height="36" viewBox="0 0 24 24" fill="currentColor"
-                                style="display:none;">
+                            <svg class="np-pause-icon pause-icon" width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                             </svg>
                         </button>
@@ -703,9 +666,8 @@
                             below.</p>
                     </div>
                     <textarea id="np-lyrics-editor" class="np-lyrics-editor" placeholder="Paste or write lyrics here..."
-                        rows="4" style="display:none;"></textarea>
-                    <button id="btn-edit-lyrics" class="drawer-btn"
-                        style="margin-top:8px;font-size:0.85rem;padding:10px;">Edit Lyrics</button>
+                        rows="4"></textarea>
+                    <button id="btn-edit-lyrics" class="drawer-btn mt-8-p-10">Edit Lyrics</button>
                 </div>
             </div>
         </div>
@@ -743,8 +705,7 @@
                     <svg class="play-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M8 5v14l11-7z" />
                     </svg>
-                    <svg class="pause-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"
-                        style="display:none;">
+                    <svg class="pause-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                     </svg>
                 </button>
@@ -767,7 +728,7 @@
     </div>
 
     <div id="toast-container" class="toast-container"></div>
-    <div id="track-options-menu" class="custom-dropdown hidden" style="position: absolute; z-index: 300; width: 150px;">
+    <div id="track-options-menu" class="custom-dropdown hidden abs-z300-w150">
         <div class="dropdown-option" id="opt-play-next">Play Next</div>
         <div class="dropdown-option" id="opt-add-playlist">Add to Playlist</div>
     </div>
@@ -775,12 +736,10 @@
     <div id="custom-modal-overlay" class="custom-modal-overlay hidden">
         <div class="custom-modal-card">
             <h3 id="custom-modal-title">Title</h3>
-            <p id="custom-modal-message" style="display:none;"></p>
-            <input type="text" id="custom-modal-input" class="drawer-select" placeholder="Enter name..."
-                style="display:none;">
+            <p id="custom-modal-message"></p>
+            <input type="text" id="custom-modal-input" class="drawer-select" placeholder="Enter name...">
             <div class="custom-modal-buttons">
-                <button id="custom-modal-cancel" class="drawer-btn"
-                    style="background:var(--bg-hover);color:var(--text-main);">Cancel</button>
+                <button id="custom-modal-cancel" class="drawer-btn btn-secondary">Cancel</button>
                 <button id="custom-modal-confirm" class="drawer-btn">OK</button>
             </div>
         </div>

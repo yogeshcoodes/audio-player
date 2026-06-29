@@ -9,8 +9,10 @@
     --border: #e1e5eb;
     --text-main: #1f1f1f;
     --text-muted: #5f6368;
-    --accent: #6BA661;
-    --accent-glow: rgba(107, 166, 97, 0.18);
+    --accent: #BEB5AB;
+    /* Updated Default */
+    --accent-glow: rgba(190, 181, 171, 0.18);
+    /* Updated Default Glow */
     --shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
     --radius-pill: 500px;
     --radius-lg: 28px;
@@ -44,7 +46,6 @@
 html,
 body {
     overscroll-behavior-y: none;
-    /* Prevents mobile pull-to-refresh */
 }
 
 html {
@@ -93,6 +94,85 @@ button {
 
 button:active {
     transform: scale(0.92);
+}
+
+/* Structural utility classes for independent HTML */
+.drawer-col-stretch {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+}
+
+.drawer-col-start {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.btn-secondary {
+    background: var(--bg-hover) !important;
+    color: var(--text-main) !important;
+}
+
+.ml-n12 {
+    margin-left: -12px;
+}
+
+.flex-1-ml-8-ellipsis {
+    flex: 1;
+    margin-left: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.slider-header-full {
+    justify-content: space-between;
+    display: flex;
+    width: 100%;
+}
+
+.text-sm-muted-mb {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    margin-top: -6px;
+}
+
+.opacity-40-no-pointer {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.mt-8-p-10 {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    padding: 10px;
+}
+
+.abs-z300-w150 {
+    position: absolute;
+    z-index: 300;
+    width: 150px;
+}
+
+.cover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Hidden initial states */
+#search-bar,
+#empty-state,
+#playlist-detail,
+#np-album-art,
+#np-lyrics-editor,
+.pause-icon,
+.np-pause-icon,
+#custom-modal-message,
+#custom-modal-input {
+    display: none;
 }
 
 .icon-btn {
@@ -233,7 +313,6 @@ button:active {
     transition: border-color 0.2s;
 }
 
-/* Custom Sort Dropdown */
 .custom-select-wrapper {
     position: relative;
     width: 100%;
@@ -296,7 +375,6 @@ button:active {
     background: var(--accent-glow);
 }
 
-/* Format Toggle */
 .format-toggle-group {
     display: flex;
     gap: 8px;
@@ -322,7 +400,6 @@ button:active {
     border-color: var(--accent);
 }
 
-/* Palette Grid */
 .palette-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -350,7 +427,6 @@ button:active {
     transform: scale(1.05);
 }
 
-/* Header */
 header {
     padding: 8px 10px 0;
     flex-shrink: 0;
@@ -384,6 +460,7 @@ header {
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    scroll-behavior: smooth;
 }
 
 .tabs::-webkit-scrollbar {
@@ -430,7 +507,6 @@ header {
     box-shadow: 0 0 0 4px var(--accent-glow);
 }
 
-/* Playlists View */
 .playlist-view-header {
     display: flex;
     justify-content: space-between;
@@ -475,7 +551,6 @@ header {
     margin-top: 3px;
 }
 
-/* Main Content */
 main {
     flex: 1;
     overflow-y: auto;
@@ -512,7 +587,6 @@ main {
 .empty-view {
     position: absolute;
     inset: 0;
-    display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -637,7 +711,6 @@ main {
     color: var(--text-main);
 }
 
-/* DSP Modules */
 .fx-module {
     background: var(--bg-panel);
     border-radius: var(--radius-lg);
@@ -703,7 +776,6 @@ main {
     padding-bottom: 16px;
 }
 
-/* Switches & Sliders */
 .switch {
     position: relative;
     display: inline-block;
@@ -812,7 +884,6 @@ input[type="range"]::-webkit-slider-thumb:active {
     transform: scaleX(1.4) scaleY(0.9);
 }
 
-/* Footer / Player Bar */
 footer {
     background: var(--bg-app);
     position: relative;
@@ -872,7 +943,6 @@ footer {
     opacity: 0.85;
 }
 
-/* Title Marquee Replacements */
 .now-playing-container {
     margin: 0 auto 4px auto;
     text-align: center;
@@ -881,7 +951,6 @@ footer {
     overflow: hidden;
     white-space: nowrap;
     position: relative;
-    /* Soft fading edges for scrolling text */
     mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
     -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
 }
@@ -978,8 +1047,8 @@ footer {
     border-radius: 0;
     box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.15);
     overflow: hidden;
+    /* Avoid main wrapper scrolling to fit inside tight screens */
     overscroll-behavior-y: none;
-    /* Mobile pull-down fix */
 }
 
 .now-playing-overlay.open {
@@ -1001,17 +1070,20 @@ footer {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    /* Ensures centered responsive look */
-    gap: 4vh;
-    overflow-y: auto;
+    justify-content: space-between;
+    gap: 2vh;
+    overflow-y: hidden;
+    /* Strict no vertical scroll */
     -webkit-overflow-scrolling: touch;
 }
 
 .np-art-container {
     width: 100%;
     max-width: 320px;
-    max-height: 320px;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 40vh;
+    /* Perfectly sizes on small vertical devices */
     aspect-ratio: 1 / 1;
     border-radius: 20px;
     overflow: hidden;
@@ -1020,8 +1092,9 @@ footer {
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
     box-shadow: var(--shadow);
+    margin: 0 auto;
+    will-change: transform;
 }
 
 .np-art-container img {
@@ -1042,7 +1115,7 @@ footer {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
     flex-shrink: 0;
 }
 
@@ -1127,7 +1200,6 @@ footer {
     border-color: var(--accent);
 }
 
-/* ── Toast Notifications ── */
 .toast-container {
     position: fixed;
     top: 20px;
@@ -1185,7 +1257,6 @@ footer {
     }
 }
 
-/* ── Custom Modal ── */
 .custom-modal-overlay {
     position: fixed;
     inset: 0;
@@ -1376,20 +1447,18 @@ footer {
     }
 
     .tabs button {
-        /* Made tabs more readable on small phones */
         font-size: 1.05rem;
         padding: 8px 6px;
     }
 
     .np-overlay-content {
-        gap: 3vh;
-        padding: 10px 12px 3vh;
+        gap: 1.5vh;
+        padding: 10px 12px 2vh;
     }
 
     .np-art-container {
-        /* Made Album art much bigger */
-        max-width: 280px;
-        max-height: 280px;
+        max-width: 250px;
+        max-height: 30vh;
     }
 
     .np-controls .play-btn {

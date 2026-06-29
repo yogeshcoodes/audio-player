@@ -27,15 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const npVisualizerCanvas = $('np-visualizer');
     const npVisualizerCtx = npVisualizerCanvas ? npVisualizerCanvas.getContext('2d') : null;
 
-    // Dynamically update the Normalizer UI attributes 
-    const slNormTarget = $('sl-norm-target');
-    const valNormTarget = $('val-norm-target');
-    if (slNormTarget && valNormTarget) {
-        slNormTarget.min = -24;
-        slNormTarget.max = 0;
-        slNormTarget.value = -12;
-        valNormTarget.textContent = '-12 dB';
-    }
+    // Normalizer is completely bypassed/disabled per instructions.
+    // const slNormTarget = $('sl-norm-target');
+    // const valNormTarget = $('val-norm-target');
+    // if (slNormTarget && valNormTarget) {
+    //     slNormTarget.min = -24;
+    //     slNormTarget.max = 0;
+    //     slNormTarget.value = -12;
+    //     valNormTarget.textContent = '-12 dB';
+    // }
 
     // SVG Icons
     const outlineHeart = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
@@ -71,73 +71,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let audioCtx, sourceNode, analyserNode;
     let audioCtxInitialized = false; 
     
-    const fx = { normalizer: false, clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false, preamp: false, balance: false };
+    // Normalizer is disabled, omitting from the FX object state tracker
+    const fx = { clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false, preamp: false, balance: false };
     let nodes = {};
 
-    // ── TRUE PEAK & RMS AGC NORMALIZER WORKLET (Fixed Over-boosting & Distortion) ──
-    const agcWorkletCode = `
-    class AGCProcessor extends AudioWorkletProcessor {
-        constructor() {
-            super();
-            this.targetLevel = Math.pow(10, -12 / 20); // Default -12dB Target
-            this.currentGain = 1.0;
-            this.rms = 0; 
-            
-            this.port.onmessage = (e) => {
-                if (e.data.targetDb !== undefined) {
-                    this.targetLevel = Math.pow(10, e.data.targetDb / 20);
-                }
-            };
-        }
-
-        process(inputs, outputs) {
-            const input = inputs[0];
-            const output = outputs[0];
-            if (!input || !input.length) return true;
-
-            const channels = input.length;
-            const frames = input[0].length;
-            
-            // Calculate instantaneous block RMS
-            let sumSquare = 0;
-            for (let c = 0; c < channels; c++) {
-                for (let i = 0; i < frames; i++) {
-                    sumSquare += input[c][i] * input[c][i];
-                }
-            }
-            let blockRms = Math.sqrt(sumSquare / (frames * channels));
-
-            // Extremely slow decay for RMS window (avoids pumping on drums)
-            this.rms = 0.999 * this.rms + 0.001 * blockRms;
-            let safeRms = Math.max(this.rms, 0.001); 
-            
-            // Determine desired gain based on Target / RMS
-            let desiredGain = this.targetLevel / safeRms;
-            
-            // Allow larger boosts but restrict crazy peaks
-            desiredGain = Math.max(0.1, Math.min(desiredGain, 4.0)); 
-
-            for (let i = 0; i < frames; i++) {
-                // Smooth gain transition at audio rate
-                this.currentGain += 0.001 * (desiredGain - this.currentGain);
-                
-                for (let c = 0; c < channels; c++) {
-                    let outVal = input[c][i] * this.currentGain;
-                    
-                    // Soft clipping safety net to prevent any accidental distortion
-                    if (outVal > 0.95) {
-                        outVal = 0.95 + 0.05 * Math.tanh((outVal - 0.95) * 20);
-                    } else if (outVal < -0.95) {
-                        outVal = -0.95 + 0.05 * Math.tanh((outVal + 0.95) * 20);
-                    }
-                    output[c][i] = outVal;
-                }
-            }
-            return true;
-        }
-    }
-    registerProcessor('agc-processor', AGCProcessor);
-    `;
+    // ── NORMALIZER AGC (DISABLED) ──
+    // const agcWorkletCode = `...`
 
     // Apply default format styling
     document.querySelectorAll('.format-btn').forEach(b => {
@@ -264,7 +203,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── MATERIAL YOU COLOR INFRASTRUCTURE ──
-    const colorPalette = ['#6BA661', '#601515', '#A67A19', '#949494', '#325788', '#BEB5AB', '#CB1E1E', '#34806D', '#333333', '#57612C'];
+    // Custom tailored palette as requested
+    const colorPalette = ['#6BA661', '#325788', '#BEB5AB', '#CB1E1E', '#57612C'];
 
     function hexToRgbGlow(hex) {
         let c = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -283,10 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildAccentSettingsUI() {
         const drawerBody = document.querySelector('.drawer-body');
         const section = document.createElement('div');
-        section.className = 'drawer-section';
-        section.style.flexDirection = 'column';
-        section.style.alignItems = 'flex-start';
-        section.style.gap = '12px';
+        section.className = 'drawer-section drawer-col-start';
         section.style.marginTop = '8px';
         const label = document.createElement('label');
         label.className = 'drawer-label';
@@ -306,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         drawerBody.appendChild(section);
     }
     buildAccentSettingsUI();
-    const savedAccent = localStorage.getItem('theme-accent') || '#6BA661';
+    const savedAccent = localStorage.getItem('theme-accent') || '#BEB5AB';
     applyAccentColor(savedAccent);
 
     // Theme Routing
@@ -326,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sortBtn.onclick = (e) => { e.stopPropagation(); sortDropdown.classList.toggle('hidden'); };
     document.addEventListener('click', () => { 
         sortDropdown.classList.add('hidden');
-        $('track-options-menu').classList.add('hidden'); // Also close track options menu
+        $('track-options-menu').classList.add('hidden');
     });
 
     sortDropdown.querySelectorAll('.dropdown-option').forEach(opt => {
@@ -348,14 +285,12 @@ document.addEventListener('DOMContentLoaded', () => {
         e.stopPropagation();
         $('track-options-menu').classList.add('hidden');
         showToast("Track queued to play next.");
-        // Basic queue next implementation
         if (trackMenuTargetId) {
             const idx = trackList.findIndex(t => t.id === trackMenuTargetId);
             if (idx >= 0 && idx !== currentTrackIndex) {
-                // Move item array logic would go here if full queue system existed
                 const t = trackList.splice(idx, 1)[0];
                 trackList.splice(currentTrackIndex + 1, 0, t);
-                sortAndRenderTracks(); // Redraw UI
+                sortAndRenderTracks(); 
             }
         }
     };
@@ -397,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         touchStartY = 0,
         swipeFromFooter = false;
     document.addEventListener('touchstart', e => {
-        if (e.target.closest('input[type="range"]') || e.target.closest('.switch') || e.target.closest('textarea')) {
+        if (e.target.closest('input[type="range"]') || e.target.closest('.switch') || e.target.closest('textarea') || e.target.closest('.np-art-container')) {
             window.preventSwipe = true;
             return;
         }
@@ -432,23 +367,77 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
             const isDrawerOpen = $('drawer').classList.contains('open');
-            const activeTab = document.querySelector('.tabs button.active').dataset.view;
+            const activeTabBtn = document.querySelector('.tabs button.active');
+            if(!activeTabBtn) return;
+            const activeTab = activeTabBtn.dataset.view;
+
             if (diffX > 0) {
                 if (isDrawerOpen) return;
-                if (activeTab === 'effects-panel') document.querySelector('.tabs button[data-view="playlists-view"]')
-                    .click();
-                else if (activeTab === 'playlists-view') document.querySelector(
-                    '.tabs button[data-view="songs-view"]').click();
+                if (activeTab === 'effects-panel') document.querySelector('.tabs button[data-view="playlists-view"]').click();
+                else if (activeTab === 'playlists-view') document.querySelector('.tabs button[data-view="songs-view"]').click();
                 else if (activeTab === 'songs-view') $('btn-menu').click();
             } else {
                 if (isDrawerOpen) $('btn-close-drawer').click();
-                else if (activeTab === 'songs-view') document.querySelector(
-                    '.tabs button[data-view="playlists-view"]').click();
-                else if (activeTab === 'playlists-view') document.querySelector(
-                    '.tabs button[data-view="effects-panel"]').click();
+                else if (activeTab === 'songs-view') document.querySelector('.tabs button[data-view="playlists-view"]').click();
+                else if (activeTab === 'playlists-view') document.querySelector('.tabs button[data-view="effects-panel"]').click();
             }
         }
     }, { passive: true });
+
+    // ── LIVE SWIPE (Next/Prev Track) ──
+    const npArtCont = $('np-art-container');
+    let npSwipeStartX = 0;
+    let npSwipeCurrentX = 0;
+    let npIsSwiping = false;
+
+    npArtCont.addEventListener('touchstart', (e) => {
+        npSwipeStartX = e.touches[0].clientX;
+        npIsSwiping = true;
+        npArtCont.style.transition = 'none';
+    }, {passive: true});
+
+    npArtCont.addEventListener('touchmove', (e) => {
+        if (!npIsSwiping) return;
+        npSwipeCurrentX = e.touches[0].clientX;
+        const diff = npSwipeCurrentX - npSwipeStartX;
+        npArtCont.style.transform = `translateX(${diff * 0.8}px)`; // slight drag resistance
+    }, {passive: true});
+
+    npArtCont.addEventListener('touchend', (e) => {
+        if (!npIsSwiping) return;
+        npIsSwiping = false;
+        const diff = npSwipeCurrentX - npSwipeStartX;
+        npArtCont.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0, 1)';
+
+        if (diff > 80) { 
+            // Swiped right (Prev)
+            npArtCont.style.transform = `translateX(120vw)`;
+            setTimeout(() => {
+                playPrev();
+                npArtCont.style.transition = 'none';
+                npArtCont.style.transform = `translateX(-120vw)`;
+                setTimeout(() => {
+                    npArtCont.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0, 1)';
+                    npArtCont.style.transform = `translateX(0)`;
+                }, 50);
+            }, 300);
+        } else if (diff < -80) { 
+            // Swiped left (Next)
+            npArtCont.style.transform = `translateX(-120vw)`;
+            setTimeout(() => {
+                playNext();
+                npArtCont.style.transition = 'none';
+                npArtCont.style.transform = `translateX(120vw)`;
+                setTimeout(() => {
+                    npArtCont.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0, 1)';
+                    npArtCont.style.transform = `translateX(0)`;
+                }, 50);
+            }, 300);
+        } else {
+            // Snap back
+            npArtCont.style.transform = `translateX(0)`;
+        }
+    });
 
     // Overlay Handling
     function openNowPlayingOverlay() {
@@ -506,8 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const reader = new FileReader();
         reader.onload = () => {
             let text = parseLRC(reader.result);
-            if (currentTrackIndex >= 0 && trackList[currentTrackIndex]) trackList[currentTrackIndex].lyrics =
-                text;
+            if (currentTrackIndex >= 0 && trackList[currentTrackIndex]) trackList[currentTrackIndex].lyrics = text;
             $('np-lyrics-display').textContent = text;
             $('np-lyrics-display').style.display = 'block';
             $('np-lyrics-editor').style.display = 'none';
@@ -533,8 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
             $('btn-edit-lyrics').textContent = 'Save Lyrics';
         } else {
             const newLyrics = editor.value.trim();
-            if (currentTrackIndex >= 0 && trackList[currentTrackIndex]) trackList[currentTrackIndex].lyrics =
-                newLyrics;
+            if (currentTrackIndex >= 0 && trackList[currentTrackIndex]) trackList[currentTrackIndex].lyrics = newLyrics;
             display.textContent = newLyrics || 'No lyrics loaded.';
             display.style.display = 'block';
             editor.style.display = 'none';
@@ -560,6 +547,13 @@ document.addEventListener('DOMContentLoaded', () => {
             tab.classList.add('active');
             Object.values(views).forEach(v => v.classList.remove('active-view'));
             views[tab.dataset.view].classList.add('active-view');
+
+            // Auto-center the active tab
+            const tabsContainer = document.querySelector('.tabs');
+            const tabRect = tab.getBoundingClientRect();
+            const containerRect = tabsContainer.getBoundingClientRect();
+            const scrollLeft = tab.offsetLeft - (containerRect.width / 2) + (tabRect.width / 2);
+            tabsContainer.scrollTo({ left: scrollLeft, behavior: 'smooth' });
 
             if (tab.dataset.view === 'songs-view') {
                 activePlaylistId = null;
@@ -597,10 +591,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Inject Custom Worklet for high fidelity Normalizer
-        const blob = new Blob([agcWorkletCode], { type: 'application/javascript' });
-        const url = URL.createObjectURL(blob);
-        await audioCtx.audioWorklet.addModule(url);
+        // NORMALIZER INJECTION BYPASSED
+        // const blob = new Blob([agcWorkletCode], { type: 'application/javascript' }); ...
 
         sourceNode = audioCtx.createMediaElementSource(audio);
         analyserNode = audioCtx.createAnalyser();
@@ -622,14 +614,8 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.masterLimiter.attack.value = 0.002;
         nodes.masterLimiter.release.value = 0.100;
 
-        // --- NEW: Transparent Peak AGC Normalizer ---
-        try {
-            nodes.normAGC = new AudioWorkletNode(ctx, 'agc-processor');
-            updateNormalizerParams();
-        } catch (e) {
-            console.error("AGC Worklet failed", e);
-            nodes.normAGC = ctx.createGain();
-        }
+        // NORMALIZER LOGIC BYPASSED
+        // try { nodes.normAGC = new AudioWorkletNode(ctx, 'agc-processor'); } catch (e) { ... }
 
         nodes.preampGain = ctx.createGain();
         nodes.preampGain.gain.value = 1.0;
@@ -637,27 +623,26 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.balancePan = ctx.createStereoPanner();
         nodes.balancePan.pan.value = 0;
 
-        // --- REVISED: Clearity+ (Spacious, Natural, Non-Fatiguing Atmos Style) ---
         nodes.clrBassSmooth = ctx.createBiquadFilter();
         nodes.clrBassSmooth.type = 'lowshelf';
-        nodes.clrBassSmooth.frequency.value = 60; // Gentle sub-warmth
+        nodes.clrBassSmooth.frequency.value = 60; 
         nodes.clrBassSmooth.gain.value = 1.5;
         
         nodes.clrMudCut = ctx.createBiquadFilter();
         nodes.clrMudCut.type = 'peaking';
         nodes.clrMudCut.frequency.value = 250; 
         nodes.clrMudCut.Q.value = 0.8;
-        nodes.clrMudCut.gain.value = -1.5; // Clear muddiness safely
+        nodes.clrMudCut.gain.value = -1.5; 
 
         nodes.clrDetailBoost = ctx.createBiquadFilter();
         nodes.clrDetailBoost.type = 'peaking';
         nodes.clrDetailBoost.frequency.value = 4000;
         nodes.clrDetailBoost.Q.value = 0.5;
-        nodes.clrDetailBoost.gain.value = -1.0; // DIP harshness slightly to prevent fatigue
+        nodes.clrDetailBoost.gain.value = -1.0; 
 
         nodes.clrAirShelf = ctx.createBiquadFilter();
         nodes.clrAirShelf.type = 'highshelf';
-        nodes.clrAirShelf.frequency.value = 12000; // Breath & air
+        nodes.clrAirShelf.frequency.value = 12000; 
         nodes.clrAirShelf.gain.value = 2.0;
 
         nodes.clrNormalizer = ctx.createDynamicsCompressor();
@@ -668,7 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.clrNormalizer.release.value = 0.15;
         
         nodes.clrWidth = createStereoWidthNode(ctx);
-        nodes.clrWidth.setWidth(1.4); // Enhanced realistic width
+        nodes.clrWidth.setWidth(1.4); 
         
         nodes.clrAntiDistort = ctx.createGain();
         nodes.clrAntiDistort.gain.value = 0.85;
@@ -867,7 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!audioCtx) return;
         sourceNode.disconnect();
         if (nodes.pitchOut) nodes.pitchOut.disconnect();
-        if (nodes.normAGC) nodes.normAGC.disconnect();
+        // if (nodes.normAGC) nodes.normAGC.disconnect(); BYPASSED
         if (nodes.preampGain) nodes.preampGain.disconnect();
         if (nodes.clrAntiDistort) nodes.clrAntiDistort.disconnect();
         if (nodes.eq) nodes.eq[3].disconnect();
@@ -889,10 +874,11 @@ document.addEventListener('DOMContentLoaded', () => {
             curr.connect(nodes.pitchIn);
             curr = nodes.pitchOut;
         }
-        if (fx.normalizer && nodes.normAGC) {
-            curr.connect(nodes.normAGC);
-            curr = nodes.normAGC;
-        }
+        // BYPASSED NORMALIZER CONNECTION
+        // if (fx.normalizer && nodes.normAGC) {
+        //     curr.connect(nodes.normAGC);
+        //     curr = nodes.normAGC;
+        // }
         if (fx.preamp) {
             curr.connect(nodes.preampGain);
             curr = nodes.preampGain;
@@ -1010,10 +996,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nodes.eightDRevConvolver) nodes.eightDRevConvolver.buffer = irBuffer;
     }
 
-    function updateNormalizerParams() {
-        if (!audioCtx || !nodes.normAGC || !nodes.normAGC.port) return;
-        nodes.normAGC.port.postMessage({ targetDb: parseFloat($('sl-norm-target').value) });
-    }
+    // function updateNormalizerParams() { BYPASSED }
 
     function updateReverbParams() {
         if (!audioCtx) return;
@@ -1078,7 +1061,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const toggleMap = {
-        'tgl-normalizer': 'normalizer',
+        // 'tgl-normalizer': 'normalizer', // BYPASSED
         'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp',
         'tgl-limit': 'limit', 'tgl-echo': 'echo', 'tgl-flanger': 'flanger', 'tgl-reverb': 'reverb', 'tgl-mono': 'mono',
         'tgl-invert': 'invert', 'tgl-8d': 'eightD', 'tgl-preamp': 'preamp', 'tgl-balance': 'balance'
@@ -1093,13 +1076,15 @@ document.addEventListener('DOMContentLoaded', () => {
     $('tgl-vinyl').onchange = e => {
         vinylMode = e.target.checked;
         audio.preservesPitch = !vinylMode;
-        $('pitch-group').style.opacity = vinylMode ? '0.4' : '1';
-        $('pitch-group').style.pointerEvents = vinylMode ? 'none' : 'auto';
+        const pitchGroup = $('pitch-group');
         if (vinylMode) {
+            pitchGroup.classList.add('opacity-40-no-pointer');
             $('sl-pitch').value = 0;
             $('val-pitch').textContent = '0.0';
             updatePitchShift();
             routeAudio();
+        } else {
+            pitchGroup.classList.remove('opacity-40-no-pointer');
         }
     };
 
@@ -1113,14 +1098,8 @@ document.addEventListener('DOMContentLoaded', () => {
         routeAudio();
     };
 
-    $('res-normalizer').onclick = () => {
-        $('tgl-normalizer').checked = false;
-        fx.normalizer = false;
-        $('sl-norm-target').value = -12;
-        $('val-norm-target').textContent = '-12 dB';
-        updateNormalizerParams();
-        routeAudio();
-    };
+    // $('res-normalizer').onclick = () => { ... } // BYPASSED
+
     $('res-clarity').onclick = () => {
         $('tgl-clarity').checked = false;
         fx.clarity = false;
@@ -1272,7 +1251,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePitchShift();
         routeAudio();
     });
-    bindSlider('sl-norm-target', 'val-norm-target', ' dB', updateNormalizerParams);
+    // bindSlider('sl-norm-target', 'val-norm-target', ' dB', updateNormalizerParams); // BYPASSED
     bindSlider('sl-comp-thresh', 'val-comp-thresh', ' dB', updateCompParams);
     bindSlider('sl-comp-ratio', 'val-comp-ratio', ':1', updateCompParams);
     bindSlider('sl-comp-att', 'val-comp-att', ' ms', updateCompParams);
@@ -1320,8 +1299,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     $('btn-back-playlists').onclick = () => {
         activePlaylistId = null;
-        playlistDetail.style.display = 'none';
-        playlistsHome.style.display = 'block';
+        $('playlist-detail').style.display = 'none';
+        $('playlists-home').style.display = 'block';
     };
 
     function renderPlaylistsHome() {
@@ -1346,8 +1325,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const fCard = document.createElement('div');
             fCard.className = 'playlist-card';
             fCard.innerHTML = `
-                <div class="playlist-card-info" style="flex:1; overflow:hidden;">
-                    <h3 style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(folder)}</h3>
+                <div class="playlist-card-info flex-1-ml-8-ellipsis">
+                    <h3 class="flex-1-ml-8-ellipsis" style="margin:0">${escapeHtml(folder)}</h3>
                     <p>${foldersMap[folder]} tracks (Folder)</p>
                 </div>
                 <button class="icon-btn delete-folder-btn" title="Unload/Remove completely" style="padding: 6px; z-index: 2; flex-shrink:0; margin-left:12px;">
@@ -1382,8 +1361,8 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'playlist-card';
             const count = trackList.filter(t => pl.trackIds.includes(t.id)).length;
             card.innerHTML = `
-                <div class="playlist-card-info" style="flex:1; overflow:hidden;">
-                    <h3 style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(pl.name)}</h3>
+                <div class="playlist-card-info flex-1-ml-8-ellipsis">
+                    <h3 class="flex-1-ml-8-ellipsis" style="margin:0">${escapeHtml(pl.name)}</h3>
                     <p>${count} tracks</p>
                 </div>
                 <button class="icon-btn delete-pl-btn" title="Delete Playlist" style="padding: 6px; z-index: 2; flex-shrink:0; margin-left:12px;">
@@ -1409,8 +1388,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function openPlaylistDetail(id, title) {
         activePlaylistId = id;
         $('playlist-detail-title').textContent = title;
-        playlistsHome.style.display = 'none';
-        playlistDetail.style.display = 'block';
+        $('playlists-home').style.display = 'none';
+        $('playlist-detail').style.display = 'block';
         sortAndRenderTracks();
     }
 
@@ -1420,16 +1399,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const handle = await getHandle();
             if (handle) {
                 try {
-                    // Ask browser for read permission (auto-resolves if already granted in this session)
                     const perm = await handle.queryPermission({ mode: 'read' });
                     if (perm === 'granted') {
-                        // Automatically restore tracks without extra clicks
                         await loadTracksFromHandle(handle);
                         return;
                     } 
                 } catch(e) {}
                 
-                // If it needs user interaction to restore permissions
                 const btn = document.createElement('button');
                 btn.className = 'drawer-btn';
                 btn.style.marginTop = '15px';
@@ -1605,6 +1581,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sortAndRenderTracks();
     }
 
+    // ── PERFECT MAGIC BYTE ID3 ALBUM ART PARSER ──
     async function extractAlbumArtForTrack(track) {
         if (track.albumArt !== null || track._isExtracting) return;
         track._isExtracting = true;
@@ -1637,20 +1614,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     const frameSize = view.getUint32(offset + 4);
                     if (frameId === 'APIC') {
                         let imgStart = offset + 10;
-                        while (imgStart < offset + 10 + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
-                        imgStart++; imgStart++; 
-                        while (imgStart < offset + 10 + frameSize && view.getUint8(imgStart) !== 0) imgStart++;
-                        imgStart++; 
+                        let found = false;
                         
-                        if (imgStart < offset + 10 + frameSize) {
+                        // Robust Magic Byte Search for Image Header within APIC Frame Data
+                        while(imgStart < offset + 10 + frameSize - 3) {
+                            const b1 = view.getUint8(imgStart);
+                            const b2 = view.getUint8(imgStart+1);
+                            const b3 = view.getUint8(imgStart+2);
+                            const b4 = view.getUint8(imgStart+3);
+                            
+                            // JPEG: FF D8 FF
+                            if (b1 === 0xFF && b2 === 0xD8 && b3 === 0xFF) { found = true; break; }
+                            // PNG: 89 50 4E 47
+                            if (b1 === 0x89 && b2 === 0x50 && b3 === 0x4E && b4 === 0x47) { found = true; break; }
+                            
+                            imgStart++;
+                        }
+                        
+                        if (found && imgStart < offset + 10 + frameSize) {
                             const imgData = new Uint8Array(buffer.slice(imgStart, offset + 10 + frameSize));
-                            track.albumArt = URL.createObjectURL(new Blob([imgData]));
+                            const mimeType = (view.getUint8(imgStart) === 0xFF) ? 'image/jpeg' : 'image/png';
+                            track.albumArt = URL.createObjectURL(new Blob([imgData], {type: mimeType}));
                             
                             if (track.element) {
                                 const coverDiv = track.element.querySelector('.song-cover');
                                 if (coverDiv) {
                                     const playingInd = coverDiv.querySelector('.playing-indicator');
-                                    coverDiv.innerHTML = `<img src="${track.albumArt}" style="width:100%; height:100%; object-fit:cover;">`;
+                                    coverDiv.innerHTML = `<img class="cover-img" src="${track.albumArt}">`;
                                     if (playingInd) coverDiv.appendChild(playingInd);
                                 }
                             }
@@ -1679,32 +1669,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function sortAndRenderTracks() {
         const sortVal = currentSort;
         switch (sortVal) {
-            case 'name-asc':
-                trackList.sort((a, b) => a.title.localeCompare(b.title));
-                break;
-            case 'name-desc':
-                trackList.sort((a, b) => b.title.localeCompare(a.title));
-                break;
-            case 'date-mod-desc':
-                trackList.sort((a, b) => (b.dateModified || 0) - (a.dateModified || 0));
-                break;
-            case 'date-mod-asc':
-                trackList.sort((a, b) => (a.dateModified || 0) - (b.dateModified || 0));
-                break;
-            case 'date-add-desc':
-                trackList.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
-                break;
-            case 'date-add-asc':
-                trackList.sort((a, b) => (a.dateAdded || 0) - (b.dateAdded || 0));
-                break;
-            case 'duration-desc':
-                trackList.sort((a, b) => (b.duration || 0) - (a.duration || 0));
-                break;
-            case 'duration-asc':
-                trackList.sort((a, b) => (a.duration || 0) - (b.duration || 0));
-                break;
-            default:
-                trackList.sort((a, b) => a.title.localeCompare(b.title));
+            case 'name-asc': trackList.sort((a, b) => a.title.localeCompare(b.title)); break;
+            case 'name-desc': trackList.sort((a, b) => b.title.localeCompare(a.title)); break;
+            case 'date-mod-desc': trackList.sort((a, b) => (b.dateModified || 0) - (a.dateModified || 0)); break;
+            case 'date-mod-asc': trackList.sort((a, b) => (a.dateModified || 0) - (b.dateModified || 0)); break;
+            case 'date-add-desc': trackList.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0)); break;
+            case 'date-add-asc': trackList.sort((a, b) => (a.dateAdded || 0) - (b.dateAdded || 0)); break;
+            case 'duration-desc': trackList.sort((a, b) => (b.duration || 0) - (a.duration || 0)); break;
+            case 'duration-asc': trackList.sort((a, b) => (a.duration || 0) - (b.duration || 0)); break;
+            default: trackList.sort((a, b) => a.title.localeCompare(b.title));
         }
 
         let displayList = trackList;
@@ -1745,7 +1718,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             item.innerHTML = `
                 <div class="song-cover">
-                    <img src="${imgSrc}" style="width:100%; height:100%; object-fit:cover;" onerror="this.outerHTML='<svg width=\\'24\\' height=\\'24\\' viewBox=\\'0 0 24 24\\' fill=\\'currentColor\\'><path d=\\'M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z\\'/></svg>'">
+                    <img class="cover-img" src="${imgSrc}" onerror="this.outerHTML='<svg width=\\'24\\' height=\\'24\\' viewBox=\\'0 0 24 24\\' fill=\\'currentColor\\'><path d=\\'M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z\\'/></svg>'">
                     <div class="playing-indicator" id="ind-${track.id}">
                         ${isPlaying && currentTrackIndex === idx ? playIndicatorSvg : pausedIndicatorSvg}
                     </div>
@@ -1780,7 +1753,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const menu = $('track-options-menu');
                 menu.classList.remove('hidden');
                 
-                // Positioning
                 const rect = e.currentTarget.getBoundingClientRect();
                 menu.style.top = (rect.bottom + window.scrollY) + 'px';
                 menu.style.left = Math.min((rect.right - 150), window.innerWidth - 160) + 'px';
@@ -1824,8 +1796,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateTitleScroll = () => {
         const el = $('now-playing-title');
         el.classList.remove('scrolling-text');
-        
-        // Resetting layout briefly to accurately measure width without animation
         el.style.display = 'inline-block'; 
         const isOverflowing = el.scrollWidth > el.parentElement.clientWidth;
         
@@ -1842,7 +1812,6 @@ document.addEventListener('DOMContentLoaded', () => {
         audio.load();
         
         nowPlayingTitle.textContent = t.title;
-        // Evaluate scrolling after a tiny paint cycle
         requestAnimationFrame(() => updateTitleScroll());
 
         document.querySelectorAll('.song-item').forEach(i => i.classList.remove('active-track'));
@@ -1898,8 +1867,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     progressBar.oninput = e => {
-        if (audio.duration) audio.currentTime = (e.target.value / 1000) * audio
-            .duration;
+        if (audio.duration) audio.currentTime = (e.target.value / 1000) * audio.duration;
     };
 
     function playNext() {
@@ -2026,15 +1994,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let curr = src;
 
-            if (fx.normalizer) {
-                const blob = new Blob([agcWorkletCode], { type: 'application/javascript' });
-                const url = URL.createObjectURL(blob);
-                await offCtx.audioWorklet.addModule(url);
-                const oNormAGC = new AudioWorkletNode(offCtx, 'agc-processor');
-                oNormAGC.port.postMessage({ targetDb: parseFloat($('sl-norm-target').value) });
-                curr.connect(oNormAGC);
-                curr = oNormAGC;
-            }
+            // NORMALIZER BYPASSED IN EXPORT
+            // if (fx.normalizer) { ... } 
 
             if (fx.preamp) {
                 const oPre = offCtx.createGain();
@@ -2137,12 +2098,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const lameEnc = new lamejs.Mp3Encoder(nCh, rendered.sampleRate, 192); // 192kbps
                 const mp3Data = [];
                 const samples = rendered.length;
-                const sampleBlockSize = 1152; // Needs to be multiple of 576
+                const sampleBlockSize = 1152; 
                 
                 let left = rendered.getChannelData(0);
                 let right = nCh > 1 ? rendered.getChannelData(1) : left;
                 
-                // Int16 Conversions needed for LameJS
                 let leftInt = new Int16Array(samples);
                 let rightInt = new Int16Array(samples);
                 
