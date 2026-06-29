@@ -895,7 +895,7 @@ footer {
 }
 
 .scrolling-text {
-    animation: scrollText 8s linear infinite;
+    animation: scrollText 14s linear infinite;
 }
 
 @keyframes scrollText {
