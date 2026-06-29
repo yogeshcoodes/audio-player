@@ -2180,3 +2180,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 800);
     };
 });
+
+// Block Access Start :
+(function() {
+    // 1. Disable Right-Click
+    document.addEventListener('contextmenu', e => e.preventDefault());
+
+    // 2. Disable F12 and Common Keyboard Shortcuts
+    document.onkeydown = function(e) {
+        if (e.keyCode === 123 || // F12
+           (e.ctrlKey && e.shiftKey && e.keyCode === 73) || // Ctrl+Shift+I
+           (e.ctrlKey && e.shiftKey && e.keyCode === 67) || // Ctrl+Shift+C
+           (e.ctrlKey && e.shiftKey && e.keyCode === 74) || // Ctrl+Shift+J
+           (e.ctrlKey && e.keyCode === 85)) { // Ctrl+U
+            return false;
+        }
+    };
+
+    // 3. Simple Console Detection (Triggers debugger if dev tools are open)
+    setInterval(() => {
+        const threshold = 160;
+        const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+        const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+        if (widthThreshold || heightThreshold) {
+            // This is a common trick to slow down/annoy developers
+            console.log("%cStop!", "color: red; font-size: 50px; font-weight: bold;");
+            debugger; 
+        }
+    }, 1000);
+})();
+
+// Block Access End.
