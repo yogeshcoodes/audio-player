@@ -23,6 +23,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const visualizerCanvas = $('visualizer');
     const visualizerCtx = visualizerCanvas.getContext('2d');
 
+    // Dynamically update the Normalizer UI attributes to cap at 0dB max and set default to -6dB
+    const slNormTarget = $('sl-norm-target');
+    const valNormTarget = $('val-norm-target');
+    if (slNormTarget && valNormTarget) {
+        slNormTarget.min = -40;
+        slNormTarget.max = 0;
+        slNormTarget.value = -6;
+        valNormTarget.textContent = '-6 dB';
+    }
+
     // SVG Icons
     const outlineHeart = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
     const filledHeart = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
@@ -35,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPlaying = false;
     let shuffleMode = false;
     let repeatMode = 'off';
-    let exportFormat = 'mp3'; // Changed default to MP3
+    let exportFormat = 'mp3'; 
     let currentSort = 'name-asc';
 
     // Playlists State
@@ -53,8 +63,78 @@ document.addEventListener('DOMContentLoaded', () => {
     audio.preservesPitch = !vinylMode;
 
     let audioCtx, sourceNode, analyserNode;
-    const fx = { clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false, preamp: false, balance: false };
+    let audioCtxInitialized = false; 
+    
+    const fx = { normalizer: false, clarity: false, eq: false, vocal: false, comp: false, limit: false, echo: false, flanger: false, reverb: false, mono: false, invert: false, eightD: false, preamp: false, balance: false };
     let nodes = {};
+
+    // ── TRUE PEAK AGC NORMALIZER WORKLET (Fixed Over-boosting & Distortion) ──
+    const agcWorkletCode = `
+    class AGCProcessor extends AudioWorkletProcessor {
+        constructor() {
+            super();
+            this.targetLevel = Math.pow(10, -6 / 20); // Default -6dB
+            this.currentGain = 1.0;
+            this.env = 0.5; // Start assuming a moderately loud signal
+            
+            this.port.onmessage = (e) => {
+                if (e.data.targetDb !== undefined) {
+                    this.targetLevel = Math.pow(10, e.data.targetDb / 20);
+                }
+            };
+        }
+
+        process(inputs, outputs) {
+            const input = inputs[0];
+            const output = outputs[0];
+            if (!input || !input.length) return true;
+
+            const channels = input.length;
+            const frames = input[0].length;
+
+            for (let i = 0; i < frames; i++) {
+                // Peak detection instead of RMS prevents massive drops between kicks
+                let maxMag = 0;
+                for (let c = 0; c < channels; c++) {
+                    let val = Math.abs(input[c][i]);
+                    if (val > maxMag) maxMag = val;
+                }
+
+                // Asymmetric envelope: Fast attack to catch peaks safely, extremely slow release
+                // to maintain consistent volume during quiet segments without pumping "like crazy"
+                if (maxMag > this.env) {
+                    this.env = this.env * 0.99 + maxMag * 0.01;
+                } else {
+                    this.env = this.env * 0.999995 + maxMag * 0.000005; 
+                }
+                
+                let safeEnv = Math.max(this.env, 0.02); 
+                let desiredGain = this.targetLevel / safeEnv;
+
+                // STRICT LIMITS: Max +3dB boost, preventing distortion and crazy loud quiet sections
+                desiredGain = Math.max(0.1, Math.min(desiredGain, 1.4));
+
+                // Smooth audio-rate gain application
+                this.currentGain += 0.0002 * (desiredGain - this.currentGain);
+
+                for (let c = 0; c < channels; c++) {
+                    let outVal = input[c][i] * this.currentGain;
+                    
+                    // Safety soft-clipper to prevent digital harshness if it ever exceeds 0.98
+                    if (outVal > 0.98) {
+                        outVal = 0.98 + 0.02 * Math.tanh((outVal - 0.98) * 50);
+                    } else if (outVal < -0.98) {
+                        outVal = -0.98 + 0.02 * Math.tanh((outVal + 0.98) * 50);
+                    }
+
+                    output[c][i] = outVal;
+                }
+            }
+            return true;
+        }
+    }
+    registerProcessor('agc-processor', AGCProcessor);
+    `;
 
     // Apply default format styling
     document.querySelectorAll('.format-btn').forEach(b => {
@@ -178,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showConfirm(title, message) {
-        return showModal(title, { message: message, showInput: false, showCancel: true, confirmText: 'Delete' });
+        return showModal(title, { message: message, showInput: false, showCancel: true, confirmText: 'Confirm' });
     }
 
     // ── MATERIAL YOU COLOR INFRASTRUCTURE ──
@@ -468,7 +548,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (audioCtx.state === 'suspended') await audioCtx.resume();
             return;
         }
+        if (audioCtxInitialized) return; 
+        audioCtxInitialized = true;
+
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Inject Custom Worklet for high fidelity Normalizer
+        const blob = new Blob([agcWorkletCode], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        await audioCtx.audioWorklet.addModule(url);
+
         sourceNode = audioCtx.createMediaElementSource(audio);
         analyserNode = audioCtx.createAnalyser();
         analyserNode.fftSize = 256;
@@ -479,11 +568,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function buildEffectNodes(ctx) {
-        // High Headroom to prevent clipping when summing EQ gains
         nodes.masterGain = ctx.createGain();
         nodes.masterGain.gain.value = 0.65; 
 
-        // Brickwall Limiter to finalize and prevent distortion safely
         nodes.masterLimiter = ctx.createDynamicsCompressor();
         nodes.masterLimiter.threshold.value = -0.5;
         nodes.masterLimiter.knee.value = 0.0;
@@ -491,11 +578,18 @@ document.addEventListener('DOMContentLoaded', () => {
         nodes.masterLimiter.attack.value = 0.002;
         nodes.masterLimiter.release.value = 0.100;
 
-        // Preamp
+        // --- NEW: Transparent Peak AGC Normalizer ---
+        try {
+            nodes.normAGC = new AudioWorkletNode(ctx, 'agc-processor');
+            updateNormalizerParams();
+        } catch (e) {
+            console.error("AGC Worklet failed", e);
+            nodes.normAGC = ctx.createGain();
+        }
+
         nodes.preampGain = ctx.createGain();
         nodes.preampGain.gain.value = 1.0;
 
-        // Balance
         nodes.balancePan = ctx.createStereoPanner();
         nodes.balancePan.pan.value = 0;
 
@@ -722,6 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!audioCtx) return;
         sourceNode.disconnect();
         if (nodes.pitchOut) nodes.pitchOut.disconnect();
+        if (nodes.normAGC) nodes.normAGC.disconnect();
         if (nodes.preampGain) nodes.preampGain.disconnect();
         if (nodes.clrAntiDistort) nodes.clrAntiDistort.disconnect();
         if (nodes.eq) nodes.eq[3].disconnect();
@@ -742,6 +837,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pitchVal !== 0) {
             curr.connect(nodes.pitchIn);
             curr = nodes.pitchOut;
+        }
+        if (fx.normalizer && nodes.normAGC) {
+            curr.connect(nodes.normAGC);
+            curr = nodes.normAGC;
         }
         if (fx.preamp) {
             curr.connect(nodes.preampGain);
@@ -796,7 +895,6 @@ document.addEventListener('DOMContentLoaded', () => {
             curr = nodes.limit;
         }
 
-        // Output routing matching to prevent clipping
         curr.connect(analyserNode);
         analyserNode.connect(nodes.masterGain);
         nodes.masterGain.connect(nodes.masterLimiter);
@@ -859,6 +957,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const irBuffer = await offCtx.startRendering();
         nodes.revConvolver.buffer = irBuffer;
         if (nodes.eightDRevConvolver) nodes.eightDRevConvolver.buffer = irBuffer;
+    }
+
+    function updateNormalizerParams() {
+        if (!audioCtx || !nodes.normAGC || !nodes.normAGC.port) return;
+        nodes.normAGC.port.postMessage({ targetDb: parseFloat($('sl-norm-target').value) });
     }
 
     function updateReverbParams() {
@@ -924,6 +1027,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const toggleMap = {
+        'tgl-normalizer': 'normalizer',
         'tgl-clarity': 'clarity', 'tgl-eq': 'eq', 'tgl-vocal': 'vocal', 'tgl-comp': 'comp',
         'tgl-limit': 'limit', 'tgl-echo': 'echo', 'tgl-flanger': 'flanger', 'tgl-reverb': 'reverb', 'tgl-mono': 'mono',
         'tgl-invert': 'invert', 'tgl-8d': 'eightD', 'tgl-preamp': 'preamp', 'tgl-balance': 'balance'
@@ -958,6 +1062,14 @@ document.addEventListener('DOMContentLoaded', () => {
         routeAudio();
     };
 
+    $('res-normalizer').onclick = () => {
+        $('tgl-normalizer').checked = false;
+        fx.normalizer = false;
+        $('sl-norm-target').value = -6;
+        $('val-norm-target').textContent = '-6 dB';
+        updateNormalizerParams();
+        routeAudio();
+    };
     $('res-clarity').onclick = () => {
         $('tgl-clarity').checked = false;
         fx.clarity = false;
@@ -1090,7 +1202,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const bindSlider = (id, valId, suffix, updater, isIR = false) => {
         let timer;
         $(id).oninput = e => {
-            $(valId).textContent = e.target.value + suffix; if (updater) updater(); if (isIR) {
+            let val = e.target.value;
+            if (suffix.includes('dB') && parseFloat(val) > 0) val = '+' + val;
+            $(valId).textContent = val + suffix; 
+            if (updater) updater(); 
+            if (isIR) {
                 clearTimeout(timer);
                 timer = setTimeout(generateReverbIR, 300);
             }
@@ -1105,6 +1221,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePitchShift();
         routeAudio();
     });
+    bindSlider('sl-norm-target', 'val-norm-target', ' dB', updateNormalizerParams);
     bindSlider('sl-comp-thresh', 'val-comp-thresh', ' dB', updateCompParams);
     bindSlider('sl-comp-ratio', 'val-comp-ratio', ':1', updateCompParams);
     bindSlider('sl-comp-att', 'val-comp-att', ' ms', updateCompParams);
@@ -1177,8 +1294,34 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.keys(foldersMap).forEach(folder => {
             const fCard = document.createElement('div');
             fCard.className = 'playlist-card';
-            fCard.innerHTML =
-                `<div class="playlist-card-info"><h3>${escapeHtml(folder)}</h3><p>${foldersMap[folder]} tracks (Folder)</p></div>`;
+            fCard.innerHTML = `
+                <div class="playlist-card-info" style="flex:1; overflow:hidden;">
+                    <h3 style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(folder)}</h3>
+                    <p>${foldersMap[folder]} tracks (Folder)</p>
+                </div>
+                <button class="icon-btn delete-folder-btn" title="Unload/Remove completely" style="padding: 6px; z-index: 2; flex-shrink:0; margin-left:12px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+            `;
+
+            fCard.querySelector('.delete-folder-btn').onclick = async (e) => {
+                e.stopPropagation();
+                const confirmed = await showConfirm('Remove Folder', `Are you sure you want to completely unload "${folder}" from your library?`);
+                if (confirmed) {
+                    trackList = trackList.filter(t => t.folderName !== folder);
+                    if (currentTrackIndex >= trackList.length) {
+                        currentTrackIndex = -1; 
+                        updateNowPlayingOverlay();
+                    }
+                    if(trackList.length === 0) {
+                        $('empty-state').style.display = 'flex';
+                        $('search-bar').style.display = 'none';
+                    }
+                    sortAndRenderTracks();
+                    renderPlaylistsHome();
+                }
+            };
+
             fCard.onclick = () => openPlaylistDetail('folder_' + folder, folder);
             playlistCardsContainer.appendChild(fCard);
         });
@@ -1188,11 +1331,11 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'playlist-card';
             const count = trackList.filter(t => pl.trackIds.includes(t.id)).length;
             card.innerHTML = `
-                <div class="playlist-card-info">
-                    <h3>${escapeHtml(pl.name)}</h3>
+                <div class="playlist-card-info" style="flex:1; overflow:hidden;">
+                    <h3 style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(pl.name)}</h3>
                     <p>${count} tracks</p>
                 </div>
-                <button class="icon-btn delete-pl-btn" title="Delete Playlist" style="padding: 6px; z-index: 2;">
+                <button class="icon-btn delete-pl-btn" title="Delete Playlist" style="padding: 6px; z-index: 2; flex-shrink:0; margin-left:12px;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
             `;
@@ -1310,7 +1453,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await saveHandle(handle);
                 await loadTracksFromHandle(handle);
             } catch (e) {
-                if (e.name !== 'AbortError') $('folder-input').click(); // fallback
+                if (e.name !== 'AbortError') $('folder-input').click(); 
             }
         } else {
             $('folder-input').click();
@@ -1360,12 +1503,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     $('file-input').onchange = e => {
-        const file = e.target.files[0];
-        if (!file || !file.type.startsWith('audio/')) {
+        const files = Array.from(e.target.files);
+        const validFiles = files.filter(f => f.type.startsWith('audio/'));
+        if (!validFiles.length) {
             showToast('Please select an audio file.', 'error');
             return;
         }
-        processNewFiles([file], 'Local File');
+        processNewFiles(validFiles, 'Local Files');
         cancelDrawer();
     };
 
@@ -1373,7 +1517,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const now = Date.now();
         const newTracks = files.map((file, i) => {
             const folderPathParts = file.webkitRelativePath ? file.webkitRelativePath.split('/') : [];
-            const folderName = folderPathParts.length > 1 ? folderPathParts[0] : (defaultFolderName || 'Local Folder');
+            const folderName = folderPathParts.length > 1 ? folderPathParts[0] : (defaultFolderName || 'Local Files');
             return {
                 id: 'trk_' + Math.random().toString(36).substr(2, 9),
                 title: file.name.replace(/\.[^/.]+$/, ''),
@@ -1392,6 +1536,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 folderName: folderName
             };
         });
+        
         trackList = trackList.concat(newTracks);
         searchBar.style.display = 'block';
         emptyState.style.display = 'none';
@@ -1544,7 +1689,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="song-info"><h3>${escapeHtml(track.title)}</h3><p>${escapeHtml(track.artist)}</p></div>
-                <span class="song-duration">--:--</span>
+                <span class="song-duration">${track.duration ? formatTime(track.duration) : '--:--'}</span>
                 <button class="icon-btn heart-btn" aria-label="Favorite" style="color: ${heartColor};">${heartIcon}</button>
             `;
 
@@ -1569,15 +1714,17 @@ document.addEventListener('DOMContentLoaded', () => {
             track.element = item;
 
             if (!track.duration) {
-                const temp = new Audio(track.url);
-                temp.onloadedmetadata = () => {
+                const temp = new Audio();
+                temp.addEventListener('loadedmetadata', () => {
                     track.duration = temp.duration;
-                    const durEl = item.querySelector('.song-duration');
-                    if (durEl) durEl.textContent = formatTime(track.duration);
-                };
+                    if (track.element) {
+                        const durEl = track.element.querySelector('.song-duration');
+                        if (durEl) durEl.textContent = formatTime(track.duration);
+                    }
+                });
+                temp.src = track.url;
             }
 
-            // Extract album art lazily
             if (track.albumArt === null && !track._isExtracting) {
                 extractAlbumArtForTrack(track);
             }
@@ -1775,6 +1922,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let curr = src;
 
+            if (fx.normalizer) {
+                const blob = new Blob([agcWorkletCode], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                await offCtx.audioWorklet.addModule(url);
+                const oNormAGC = new AudioWorkletNode(offCtx, 'agc-processor');
+                oNormAGC.port.postMessage({ targetDb: parseFloat($('sl-norm-target').value) });
+                curr.connect(oNormAGC);
+                curr = oNormAGC;
+            }
+
             if (fx.preamp) {
                 const oPre = offCtx.createGain();
                 oPre.gain.value = nodes.preampGain.gain.value;
@@ -1850,7 +2007,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 oDry.connect(offCtx.destination);
                 oWet.connect(offCtx.destination);
             } else { 
-                // Export Limiter matches the UI to prevent export distortion
                 const oMasterLimiter = offCtx.createDynamicsCompressor();
                 oMasterLimiter.threshold.value = -0.5;
                 oMasterLimiter.ratio.value = 20.0;

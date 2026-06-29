@@ -42,6 +42,7 @@
                         Load Audio Folder
                     </button>
                     <input type="file" id="folder-input" webkitdirectory directory multiple hidden>
+
                     <button id="btn-open-file" class="drawer-btn"
                         style="background:var(--bg-hover);color:var(--text-main);">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -49,9 +50,9 @@
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                             <polyline points="14 2 14 8 20 8" />
                         </svg>
-                        Load Audio File
+                        Load Audio File(s)
                     </button>
-                    <input type="file" id="file-input" accept="audio/*" hidden>
+                    <input type="file" id="file-input" accept="audio/*" multiple hidden>
                 </div>
                 <div class="drawer-section" style="flex-direction: column; align-items: flex-start; gap: 12px;">
                     <label class="drawer-label">Sort library by</label>
@@ -82,9 +83,7 @@
                         <button class="format-btn" data-format="mp3">MP3</button>
                         <button class="format-btn" data-format="flac">FLAC</button>
                     </div>
-
                 </div>
-
             </div>
         </div>
 
@@ -127,7 +126,7 @@
                         <circle cx="6" cy="18" r="3" />
                         <circle cx="18" cy="16" r="3" />
                     </svg>
-                    <p>Open a folder from the menu to load your music.</p>
+                    <p>Open a folder or file from the menu to load your music.</p>
                 </div>
                 <div id="song-list" class="song-list"></div>
             </div>
@@ -165,6 +164,7 @@
             </div>
 
             <div id="effects-panel" class="view">
+
                 <div class="fx-module">
                     <div class="fx-header">
                         <div class="fx-title">Speed & Pitch</div>
@@ -208,17 +208,52 @@
                         <div class="fx-title">Clearity+</div>
                         <div class="fx-controls">
                             <button class="reset-btn" id="res-clarity" title="Reset Clearity+">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                <!-- <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
                                     <polyline points="3 3 3 8 8 8" />
-                                </svg>
+                                </svg> -->
                             </button>
                             <label class="switch"><input type="checkbox" id="tgl-clarity"><span
                                     class="slider round"></span></label>
                         </div>
                     </div>
                 </div>
+
+                <div class="fx-module expandable">
+                    <div class="fx-header">
+                        <div class="fx-title">
+                            Normalizer
+                            <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </div>
+                        <div class="fx-controls">
+                            <button class="reset-btn" id="res-normalizer" title="Reset Normalizer">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                    <polyline points="3 3 3 8 8 8" />
+                                </svg>
+                            </button>
+                            <label class="switch"><input type="checkbox" id="tgl-normalizer"><span
+                                    class="slider round"></span></label>
+                        </div>
+                    </div>
+                    <div class="fx-body">
+                        <div class="slider-group">
+                            <div class="slider-header"><span>Target Level</span><span id="val-norm-target">-24 dB</span>
+                            </div>
+                            <input type="range" id="sl-norm-target" min="-40" max="-10" value="-24" step="1">
+                        </div>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">
+                           
+                        </p>
+                    </div>
+                </div>
+
+                
 
                 <div class="fx-module expandable">
                     <div class="fx-header">
