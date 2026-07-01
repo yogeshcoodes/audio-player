@@ -2425,24 +2425,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 });
 
-// (function () {
-//     document.addEventListener('contextmenu', e => e.preventDefault());
-//     document.onkeydown = function (e) {
-//         if (e.keyCode === 123 ||
-//             (e.ctrlKey && e.shiftKey && e.keyCode === 73) ||
-//             (e.ctrlKey && e.shiftKey && e.keyCode === 67) ||
-//             (e.ctrlKey && e.shiftKey && e.keyCode === 74) ||
-//             (e.ctrlKey && e.keyCode === 85)) {
-//             return false;
-//         }
-//     };
-//     setInterval(() => {
-//         const threshold = 160;
-//         const widthThreshold = window.outerWidth - window.innerWidth > threshold;
-//         const heightThreshold = window.outerHeight - window.innerHeight > threshold;
-//         if (widthThreshold || heightThreshold) {
-//             console.log("%cStop!", "color: red; font-size: 50px; font-weight: bold;");
-//             debugger;
-//         }
-//     }, 1000);
-// })();
+// Block Access Start
+(function () {
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.onkeydown = function (e) {
+        if (e.keyCode === 123 ||
+            (e.ctrlKey && e.shiftKey && e.keyCode === 73) ||
+            (e.ctrlKey && e.shiftKey && e.keyCode === 67) ||
+            (e.ctrlKey && e.shiftKey && e.keyCode === 74) ||
+            (e.ctrlKey && e.keyCode === 85)) {
+            return false;
+        }
+    };
+    setInterval(() => {
+        const threshold = 160;
+        const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+        const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+        if (widthThreshold || heightThreshold) {
+            console.log("%cStop!", "color: red; font-size: 50px; font-weight: bold;");
+            debugger;
+        }
+    }, 1000);
+})();
+// Block Access End
