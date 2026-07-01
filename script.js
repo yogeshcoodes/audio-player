@@ -6,9 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
         'songs-view': $('songs-view'),
         'folders-view': $('folders-view'),
         'playlists-view': $('playlists-view'),
-        'effects-panel': $('effects-panel')
+        'effects-panel': $('effects-panel'),
+        'tools-panel': $('tools-panel')
     };
-
     const songListContainer = $('song-list');
     const foldersContainer = $('folders-container');
     const playlistsHome = $('playlists-home');
@@ -491,8 +491,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const isFav = trackList[currentTrackIndex].isFavorite;
             btnFooterHeart.innerHTML = isFav ? filledHeart : outlineHeart;
             btnFooterHeart.style.color = isFav ? 'var(--accent)' : 'var(--text-muted)';
+            const npHeart = $('np-btn-heart');
+            if (npHeart) {
+                npHeart.innerHTML = isFav ? filledHeart : outlineHeart;
+                npHeart.style.color = isFav ? 'var(--accent)' : 'var(--text-muted)';
+            }
         }
     }
+
+    const btnNpHeart = $('np-btn-heart');
+    const btnNpLocate = $('np-btn-locate');
+    if (btnNpHeart) btnNpHeart.onclick = () => btnFooterHeart.onclick();
+    if (btnNpLocate) btnNpLocate.onclick = () => btnFooterLocate.onclick();
 
     let footerTouchStartY = 0;
     const playerBar = $('player-bar');
@@ -582,6 +592,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildEffectNodes(ctx) {
         nodes.masterGain = ctx.createGain();
         nodes.masterGain.gain.value = 1.0;
+        // Always-on transparent safety limiter - prevents clipping/distortion
+        // when multiple effects (EQ bass boost + Warmth + Preamp + Reverb...)
+        // stack gain and push the signal above 0dB.
+        nodes.safetyLimiter = ctx.createDynamicsCompressor();
+        nodes.safetyLimiter.threshold.value = -1;
+        nodes.safetyLimiter.knee.value = 0;
+        nodes.safetyLimiter.ratio.value = 20;
+        nodes.safetyLimiter.attack.value = 0.003;
+        nodes.safetyLimiter.release.value = 0.15;
 
         nodes.preampGain = ctx.createGain();
         nodes.preampGain.gain.value = 1.0;
@@ -958,7 +977,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fx.comp) { curr.connect(nodes.comp); curr = nodes.comp; }
         if (fx.limit) { curr.connect(nodes.limit); curr = nodes.limit; }
 
-        curr.connect(analyserNode);
+        // Route through the safety limiter last, so any combination of
+        // effects gets a transparent ceiling instead of clipping.
+        curr.connect(nodes.safetyLimiter);
+        nodes.safetyLimiter.connect(analyserNode);
         // analyserNode -> masterGain -> destination: connected once, in initAudioContext().
     }
 
@@ -1225,6 +1247,67 @@ document.addEventListener('DOMContentLoaded', () => {
     bindSlider('sl-8d-rev', 'val-8d-rev', '%', updateEightDParams);
     bindSlider('sl-preamp-gain', 'val-preamp-gain', ' dB', updatePreampParams);
     bindSlider('sl-warmth', 'val-warmth', '%', updateWarmthParams);
+    // ---------- Ambience ----------
+    // Independent, always-looping background audio elements. They are NOT
+    // routed through the effects chain and are NOT reset when the track
+    // changes — only the user toggling the switch off stops them.
+    const ambienceTracks = [
+        { id: 'birds', file: 'optional/ambience/Birds.mp3' },
+        { id: 'birds2', file: 'optional/ambience/Birds-2.mp3' },
+        { id: 'campfire', file: 'optional/ambience/Campfire.mp3' },
+        { id: 'crickets', file: 'optional/ambience/Crickets.mp3' },
+        { id: 'kids', file: 'optional/ambience/Kids.mp3' },
+        { id: 'lightrain', file: 'optional/ambience/Light-Rain.mp3' },
+        { id: 'rain', file: 'optional/ambience/Rain.mp3' }
+    ];
+    const ambienceAudios = {};
+    ambienceTracks.forEach(t => {
+        const a = new Audio(t.file);
+        a.loop = true; // loops indefinitely to cover the full song length
+        a.volume = 0;
+        ambienceAudios[t.id] = a;
+    });
+    let ambienceEnabled = false;
+
+    function playActiveAmbience() {
+        ambienceTracks.forEach(t => {
+            const a = ambienceAudios[t.id];
+            if (a.volume > 0) a.play().catch(() => { });
+        });
+    }
+    function pauseAllAmbience() {
+        Object.values(ambienceAudios).forEach(a => a.pause());
+    }
+
+    $('tgl-ambience').onchange = e => {
+        ambienceEnabled = e.target.checked;
+        if (ambienceEnabled) playActiveAmbience();
+        else pauseAllAmbience();
+    };
+
+    ambienceTracks.forEach(t => {
+        $(`sl-amb-${t.id}`).oninput = e => {
+            const val = parseInt(e.target.value);
+            $(`val-amb-${t.id}`).textContent = val + '%';
+            ambienceAudios[t.id].volume = val / 100;
+            if (val === 0) {
+                ambienceAudios[t.id].pause();
+            } else if (ambienceEnabled && isPlaying) {
+                ambienceAudios[t.id].play().catch(() => { });
+            }
+        };
+    });
+
+    $('res-ambience').onclick = () => {
+        $('tgl-ambience').checked = false;
+        ambienceEnabled = false;
+        ambienceTracks.forEach(t => {
+            $(`sl-amb-${t.id}`).value = 0;
+            $(`val-amb-${t.id}`).textContent = '0%';
+            ambienceAudios[t.id].volume = 0;
+            ambienceAudios[t.id].pause();
+        });
+    };
 
     $('sl-balance-pan').oninput = e => {
         const val = parseFloat(e.target.value);
@@ -1809,6 +1892,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 300);
         } else {
             npArtCont.style.transform = `translateX(0)`;
+            // A plain tap (no real horizontal drag) toggles the lyrics
+            // panel, which now sits above the album art.
+            if (Math.abs(diff) < 10) {
+                $('np-lyrics-section').classList.toggle('np-lyrics-hidden');
+            }
         }
     };
 
@@ -1916,10 +2004,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     $('btn-load-lyrics').onclick = () => $('lyrics-input').click();
+
     $('lyrics-input').onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        // Guard against OS pickers that allow "All Files" to bypass accept=.
+        if (!/\.(lrc|txt)$/i.test(file.name)) {
+            showToast('Please select a .lrc or .txt file.', 'error');
+            e.target.value = '';
+            return;
+        }
         const reader = new FileReader();
+
         reader.onload = () => {
             let text = parseLRC(reader.result);
             if (currentTrackIndex >= 0 && trackList[currentTrackIndex]) trackList[currentTrackIndex].lyrics = text;
@@ -2058,6 +2154,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentTrackIndex >= 0 && trackList[currentTrackIndex] && trackList[currentTrackIndex].element) {
             const ind = trackList[currentTrackIndex].element.querySelector('.playing-indicator');
             if (ind) ind.innerHTML = p ? playIndicatorSvg : pausedIndicatorSvg;
+        }
+        if (ambienceEnabled) {
+            p ? playActiveAmbience() : pauseAllAmbience();
         }
     }
 

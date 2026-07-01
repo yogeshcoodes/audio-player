@@ -1206,9 +1206,9 @@ footer {
     pointer-events: none;
 }
 
-.now-playing-overlay {
-    /* (unchanged block above stays as-is, this comment marks context only) */
-}
+/* .now-playing-overlay { */
+/* (unchanged block above stays as-is, this comment marks context only) */
+/* } */
 
 .np-overlay-content {
     flex: 1;
@@ -1292,7 +1292,7 @@ footer {
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    max-width: 280px;
+    max-width: 340px;
     margin-top: 2px;
 }
 
@@ -1313,6 +1313,10 @@ footer {
     max-width: 400px;
     flex: 0 1 auto;
     min-height: 0;
+}
+
+.np-lyrics-section.np-lyrics-hidden {
+    display: none;
 }
 
 .np-lyrics-header {
@@ -1665,9 +1669,12 @@ footer {
         max-height: 80px;
     }
 
-    .np-controls,
     .controls {
         max-width: 240px;
+    }
+
+    .np-controls {
+        max-width: 280px;
     }
 
     .play-btn {

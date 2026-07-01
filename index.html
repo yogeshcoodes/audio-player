@@ -8,6 +8,7 @@
     <title>High-Fidelity Audio Player</title>
     <link rel="icon" type="image/png" href="icon/f-icon.png?v=2">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="tools.css">
 
     <!-- offline Studio Toolkit do not remove comment -->
     <script src="CDN/lame.min.js"></script>
@@ -109,12 +110,15 @@
                         <path d="M4 15L14 15"></path>
                     </svg>
                 </button>
+
                 <div class="tabs">
                     <button data-view="songs-view" class="active" id="tab-library">Library</button>
                     <button data-view="folders-view" id="tab-folders">Folders</button>
                     <button data-view="playlists-view" id="tab-playlists">Playlists</button>
                     <button data-view="effects-panel" id="tab-adjustments">Adjustments</button>
+                    <button data-view="tools-panel" id="tab-tools">Tools</button>
                 </div>
+
                 <button class="icon-btn" id="btn-download" aria-label="Save Processed Audio" title="Export Audio"
                     disabled>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -494,6 +498,61 @@
 
                     <div class="fx-module expandable">
                         <div class="fx-header">
+                            <div class="fx-title">Ambience <svg class="chevron" width="20" height="20"
+                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg></div>
+                            <div class="fx-controls">
+                                <button class="reset-btn" id="res-ambience" title="Reset Ambience">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                        <polyline points="3 3 3 8 8 8" />
+                                    </svg>
+                                </button>
+                                <label class="switch"><input type="checkbox" id="tgl-ambience"><span
+                                        class="slider round"></span></label>
+                            </div>
+                        </div>
+                        <div class="fx-body">
+                            <p class="text-sm-muted-mb">Background sounds loop for as long as the track plays. Turning
+                                the toggle off is manual — it won't reset when you switch tracks.</p>
+                            <div class="slider-group">
+                                <div class="slider-header"><span>Birds</span><span id="val-amb-birds">0%</span></div>
+                                <input type="range" id="sl-amb-birds" min="0" max="100" value="0" step="1">
+                            </div>
+                            <div class="slider-group">
+                                <div class="slider-header"><span>Birds 2</span><span id="val-amb-birds2">0%</span></div>
+                                <input type="range" id="sl-amb-birds2" min="0" max="100" value="0" step="1">
+                            </div>
+                            <div class="slider-group">
+                                <div class="slider-header"><span>Campfire</span><span id="val-amb-campfire">0%</span>
+                                </div>
+                                <input type="range" id="sl-amb-campfire" min="0" max="100" value="0" step="1">
+                            </div>
+                            <div class="slider-group">
+                                <div class="slider-header"><span>Crickets</span><span id="val-amb-crickets">0%</span>
+                                </div>
+                                <input type="range" id="sl-amb-crickets" min="0" max="100" value="0" step="1">
+                            </div>
+                            <div class="slider-group">
+                                <div class="slider-header"><span>Kids</span><span id="val-amb-kids">0%</span></div>
+                                <input type="range" id="sl-amb-kids" min="0" max="100" value="0" step="1">
+                            </div>
+                            <div class="slider-group">
+                                <div class="slider-header"><span>Light Rain</span><span id="val-amb-lightrain">0%</span>
+                                </div>
+                                <input type="range" id="sl-amb-lightrain" min="0" max="100" value="0" step="1">
+                            </div>
+                            <div class="slider-group">
+                                <div class="slider-header"><span>Rain</span><span id="val-amb-rain">0%</span></div>
+                                <input type="range" id="sl-amb-rain" min="0" max="100" value="0" step="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="fx-module expandable">
+                        <div class="fx-header">
                             <div class="fx-title">Compressor <svg class="chevron" width="20" height="20"
                                     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -651,12 +710,55 @@
             </div>
         </main>
 
+        <div id="tools-panel" class="view">
+            <div class="library-scroll-area custom-scrollbar">
+                <div class="fx-module">
+                    <div class="fx-header">
+                        <div class="fx-title">Reverse Audio</div>
+                    </div>
+                    <div class="fx-body always-open">
+                        <p class="text-sm-muted-mb">Pick an audio file and download a reversed copy. More tools coming
+                            soon.</p>
+                        <input type="file" id="tools-reverse-input" accept="audio/*" hidden>
+                        <button id="btn-tools-reverse-choose" class="drawer-btn btn-secondary"
+                            style="margin-bottom:10px;">Choose Audio File</button>
+                        <button id="btn-tools-reverse-run" class="drawer-btn" disabled>Reverse & Download</button>
+                        <p id="tools-reverse-status" class="text-sm-muted-mb" style="margin-top:10px;margin-bottom:0;">
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="now-playing-overlay" class="now-playing-overlay hidden">
             <div class="np-overlay-content" id="np-overlay-content">
                 <button class="np-close-handle" id="btn-close-np" aria-label="Close">
-                    
+
                 </button>
+
+                <div class="np-lyrics-section np-lyrics-hidden" id="np-lyrics-section">
+                    <div class="np-lyrics-header">
+                        <span>Lyrics</span>
+                        <button class="icon-btn" id="btn-load-lyrics" title="Load lyrics file">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                            </svg>
+                        </button>
+                    </div>
+                    <input type="file" id="lyrics-input" accept=".lrc,.txt" hidden>
+                    <div id="np-lyrics-display" class="np-lyrics-display custom-scrollbar">
+                        <p class="lyrics-placeholder">Tap the icon to load a .lrc file, or add lyrics
+                            below.</p>
+                    </div>
+                    <textarea id="np-lyrics-editor" class="np-lyrics-editor custom-scrollbar"
+                        placeholder="Paste or write lyrics here..." rows="4"></textarea>
+                    <button id="btn-edit-lyrics" class="drawer-btn mt-8-p-10">Edit Lyrics</button>
+                </div>
+
                 <div class="np-art-container" id="np-art-container">
+
                     <img id="np-album-art" src="" alt="Album Art">
                     <div id="np-art-placeholder" class="np-art-placeholder">
                         <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor" opacity="0.4">
@@ -680,8 +782,20 @@
                         <span id="np-total-time">0:00</span>
                     </div>
 
+
                     <div class="np-controls">
+                        <button class="icon-btn np-btn-heart" aria-label="Favorite">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z">
+                                </path>
+                            </svg>
+                        </button>
                         <button class="icon-btn np-btn-shuffle" aria-label="Shuffle">
+
+
+
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2.5">
                                 <polyline points="16 3 21 3 21 8" />
@@ -711,6 +825,8 @@
                                 <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                             </svg>
                         </button>
+
+
                         <button class="icon-btn np-btn-repeat" aria-label="Repeat">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2.5">
@@ -720,31 +836,19 @@
                                 <path d="M21 13v2a4 4 0 0 1-4 4H3" />
                             </svg>
                         </button>
-                    </div>
-                </div>
-
-                <div class="np-lyrics-section" id="np-lyrics-section">
-                    <div class="np-lyrics-header">
-                        <span>Lyrics</span>
-                        <button class="icon-btn" id="btn-load-lyrics" title="Load lyrics file">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2.5">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
+                        <button class="icon-btn np-btn-locate" aria-label="Locate Track">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <circle cx="12" cy="12" r="3"></circle>
                             </svg>
                         </button>
                     </div>
-                    <input type="file" id="lyrics-input" accept=".lrc,.txt,.vtt" hidden>
-                    <div id="np-lyrics-display" class="np-lyrics-display custom-scrollbar">
-                        <p class="lyrics-placeholder">Tap the icon to load a .lrc file, or add lyrics
-                            below.</p>
-                    </div>
-                    <textarea id="np-lyrics-editor" class="np-lyrics-editor custom-scrollbar"
-                        placeholder="Paste or write lyrics here..." rows="4"></textarea>
-                    <button id="btn-edit-lyrics" class="drawer-btn mt-8-p-10">Edit Lyrics</button>
                 </div>
             </div>
         </div>
+
+
 
         <footer id="player-bar">
             <canvas id="visualizer" width="400" height="44" class="clickable-visualizer"></canvas>
@@ -840,6 +944,7 @@
     </div>
 
     <script src="script.js"></script>
+    <script src="tools.js"></script>
 </body>
 
 </html>
