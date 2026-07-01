@@ -10,9 +10,7 @@
     --text-main: #1f1f1f;
     --text-muted: #5f6368;
     --accent: #BEB5AB;
-    /* Updated Default */
     --accent-glow: rgba(190, 181, 171, 0.18);
-    /* Updated Default Glow */
     --shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
     --radius-pill: 500px;
     --radius-lg: 28px;
@@ -38,9 +36,34 @@
     -webkit-tap-highlight-color: transparent;
 }
 
-::-webkit-scrollbar {
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
     width: 0;
     height: 0;
+}
+
+.custom-scrollbar {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 
 html,
@@ -96,7 +119,6 @@ button:active {
     transform: scale(0.92);
 }
 
-/* Structural utility classes for independent HTML */
 .drawer-col-stretch {
     flex-direction: column;
     align-items: stretch;
@@ -142,6 +164,7 @@ button:active {
 .opacity-40-no-pointer {
     opacity: 0.4;
     pointer-events: none;
+    transition: opacity 0.3s ease;
 }
 
 .mt-8-p-10 {
@@ -162,10 +185,86 @@ button:active {
     object-fit: cover;
 }
 
-/* Hidden initial states */
-#search-bar,
+.bg-app {
+    background: var(--bg-app);
+}
+
+.w-100 {
+    width: 100%;
+}
+
+.mt-2 {
+    margin-top: 8px;
+}
+
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-app);
+    padding-top: 8px;
+    padding-bottom: 8px;
+    isolation: isolate;
+}
+
+#loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+#loading-overlay.hidden {
+    display: none;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.blink-anim {
+    animation: blink 1.2s ease-in-out;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        background-color: transparent;
+    }
+
+    30%,
+    70% {
+        background-color: var(--accent-glow);
+    }
+}
+
 #empty-state,
 #playlist-detail,
+#folder-detail,
 #np-album-art,
 #np-lyrics-editor,
 .pause-icon,
@@ -214,7 +313,6 @@ button:active {
     color: var(--accent);
 }
 
-/* Drawer & Overlay */
 .drawer-overlay {
     position: fixed;
     inset: 0;
@@ -286,7 +384,7 @@ button:active {
     gap: 12px;
     background: var(--accent-glow);
     color: var(--accent);
-    padding: 14px;
+    padding: 12px;
     border-radius: var(--radius-pill);
     font-weight: 500;
     font-size: 0.95rem;
@@ -348,9 +446,9 @@ button:active {
     margin-top: 6px;
     z-index: 200;
     box-shadow: var(--shadow);
-    overflow: hidden;
-    max-height: 280px;
     overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 280px;
 }
 
 .custom-dropdown.hidden {
@@ -487,6 +585,7 @@ header {
     padding-bottom: 8px;
     margin-bottom: 8px;
     width: 100%;
+    background: var(--bg-app);
 }
 
 #search-input {
@@ -553,12 +652,9 @@ header {
 
 main {
     flex: 1;
-    overflow-y: auto;
     position: relative;
-    scroll-behavior: smooth;
     height: 0;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
 }
 
 .view {
@@ -566,6 +662,12 @@ main {
     padding: 10px 14px;
     animation: fade 0.25s cubic-bezier(0.2, 0, 0, 1);
     height: 100%;
+}
+
+.library-scroll-area {
+    height: 100%;
+    padding-bottom: 140px;
+    padding-top: 2px;
 }
 
 .view.active-view {
@@ -717,6 +819,11 @@ main {
     margin-bottom: 10px;
     overflow: hidden;
     transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+/* Add this right below it to free the dropdowns! */
+.fx-module.open {
+    overflow: visible;
 }
 
 .fx-module:hover {
@@ -943,6 +1050,15 @@ footer {
     opacity: 0.85;
 }
 
+.clickable-visualizer {
+    pointer-events: auto !important;
+    cursor: pointer;
+}
+
+.clickable-visualizer:hover {
+    opacity: 1 !important;
+}
+
 .now-playing-container {
     margin: 0 auto 4px auto;
     text-align: center;
@@ -992,13 +1108,20 @@ footer {
     flex: 1;
 }
 
+.controls-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin: 0 auto;
+}
+
 .controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
     width: 100%;
     max-width: 280px;
-    margin: 0 auto;
 }
 
 .controls button {
@@ -1033,7 +1156,6 @@ footer {
     border-radius: 50%;
 }
 
-/* ── Now-Playing Fullscreen Overlay ── */
 .now-playing-overlay {
     position: fixed;
     inset: 0;
@@ -1047,7 +1169,6 @@ footer {
     border-radius: 0;
     box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.15);
     overflow: hidden;
-    /* Avoid main wrapper scrolling to fit inside tight screens */
     overscroll-behavior-y: none;
 }
 
@@ -1055,26 +1176,56 @@ footer {
     transform: translateY(0);
 }
 
-.np-overlay-handle {
-    width: 40px;
+.np-close-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
     height: 5px;
-    background: var(--border);
-    border-radius: 3px;
-    margin: 10px auto 6px;
+    margin: 2px auto 4px;
+    border-radius: var(--radius-pill);
+    color: var(--text-muted);
+    background: var(--bg-hover);
     flex-shrink: 0;
+    align-self: center;
+    transition: background-color 0.2s cubic-bezier(0.2, 0, 0, 1), color 0.2s cubic-bezier(0.2, 0, 0, 1), transform 0.15s ease;
+    cursor: grab;
+}
+
+.np-close-handle:hover {
+    background: var(--accent-glow);
+    color: var(--accent);
+}
+
+.np-close-handle:active {
+    cursor: grabbing;
+    transform: scale(0.94);
+}
+
+.np-close-handle svg {
+    pointer-events: none;
+}
+
+.now-playing-overlay {
+    /* (unchanged block above stays as-is, this comment marks context only) */
 }
 
 .np-overlay-content {
     flex: 1;
-    padding: 20px 16px 5vh;
+    width: 100%;
+    padding: 0 16px calc(5vh + env(safe-area-inset-bottom, 0px));
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: 2vh;
-    overflow-y: hidden;
-    /* Strict no vertical scroll */
+    justify-content: flex-start;
+    gap: 1.6vh;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    position: relative;
+}
+
+.np-overlay-content .now-playing-text {
+    display: none;
 }
 
 .np-art-container {
@@ -1083,7 +1234,6 @@ footer {
     flex: 1 1 auto;
     min-height: 0;
     max-height: 40vh;
-    /* Perfectly sizes on small vertical devices */
     aspect-ratio: 1 / 1;
     border-radius: 20px;
     overflow: hidden;
@@ -1100,7 +1250,9 @@ footer {
 .np-art-container img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    background: transparent;
+    pointer-events: none;
 }
 
 .np-art-placeholder {
@@ -1117,6 +1269,7 @@ footer {
     align-items: center;
     gap: 12px;
     flex-shrink: 0;
+    cursor: default;
 }
 
 .np-track-info {
@@ -1149,6 +1302,12 @@ footer {
     border-radius: 50%;
 }
 
+.np-waveform-container {
+    width: 100%;
+    height: 30px;
+    margin-bottom: 4px;
+}
+
 .np-lyrics-section {
     width: 100%;
     max-width: 400px;
@@ -1169,13 +1328,25 @@ footer {
 .np-lyrics-display {
     background: var(--bg-panel);
     border-radius: 14px;
-    padding: 10px;
-    max-height: 100px;
+    padding: 14px 16px;
+    min-height: 90px;
+    max-height: 220px;
+    width: 100%;
     overflow-y: auto;
-    font-size: 0.8rem;
-    line-height: 1.5;
+    font-size: clamp(0.95rem, 2.5vh, 1.1rem);
+    line-height: 1.7;
     white-space: pre-wrap;
+    word-break: break-word;
     color: var(--text-main);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.np-lyrics-display p {
+    margin: 0;
 }
 
 .lyrics-placeholder {
@@ -1185,6 +1356,7 @@ footer {
 
 .np-lyrics-editor {
     width: 100%;
+    min-height: 100px;
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: 14px;
@@ -1224,7 +1396,7 @@ footer {
     font-weight: 500;
     text-align: center;
     pointer-events: auto;
-    animation: toastIn 0.35s cubic-bezier(0.2, 0, 0, 1), toastOut 0.35s cubic-bezier(0.2, 0, 0, 1) 2.5s forwards;
+    animation: toastIn 0.35s cubic-bezier(0.2, 0, 0, 1), toastOut 0.35s cubic-bezier(0.2, 0, 0, 1) 3.5s forwards;
     border: 1px solid var(--border);
 }
 
@@ -1332,7 +1504,6 @@ footer {
     font-size: 0.9rem;
 }
 
-/* ── Desktop / Tablet Responsive ── */
 @media (min-width: 768px) {
     header {
         padding: 12px 30px 0;
@@ -1360,6 +1531,7 @@ footer {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
         gap: 12px;
+        padding-top: 4px;
     }
 
     footer {
@@ -1385,10 +1557,16 @@ footer {
         font-size: 0.75rem;
     }
 
+    .controls-wrapper {
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
     .controls {
         gap: 20px;
         justify-content: center;
         max-width: 340px;
+        margin: 0 20px;
     }
 
     .play-btn {
@@ -1399,6 +1577,7 @@ footer {
     .np-overlay-content {
         gap: 5vh;
         padding: 0 24px 5vh;
+        justify-content: center;
     }
 
     .np-art-container {
@@ -1428,7 +1607,19 @@ footer {
     }
 }
 
-/* Small phone optimizations */
+@media (max-width: 480px) {
+    .np-lyrics-display {
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+}
+
+@media (max-width: 480px) {
+    .np-lyrics-display {
+        max-height: 160px;
+    }
+}
+
 @media (max-width: 380px) {
     .icon-btn {
         padding: 6px;
@@ -1472,7 +1663,6 @@ footer {
 
     .np-lyrics-display {
         max-height: 80px;
-        font-size: 0.75rem;
     }
 
     .np-controls,
