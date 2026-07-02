@@ -1,3 +1,5 @@
+// script.js
+
 document.addEventListener('DOMContentLoaded', () => {
     const $ = id => document.getElementById(id);
     const body = document.body;

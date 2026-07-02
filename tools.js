@@ -1,3 +1,5 @@
+// tools.js
+
 document.addEventListener('DOMContentLoaded', () => {
     const $ = id => document.getElementById(id);
     const fileInput = $('tools-reverse-input');

@@ -1,3 +1,5 @@
+/* tools.css */
+
 /* tools.css - styles specific to the Tools tab. Kept separate on purpose so
    future tools (cut, split, etc.) don't bloat style.css */
 #btn-tools-reverse-run:disabled {

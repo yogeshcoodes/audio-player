@@ -1,0 +1,36 @@
+└── audio-editor/
+    ├── index.html
+    ├── script.js
+    ├── style.css
+    ├── icon/
+    │   ├── f-icon.png
+    │   └── icon.png
+    ├── CDN/
+    │   ├── howler.min.js
+    │   ├── lame.min.js
+    │   ├── Tone.min.js
+    │   └── wavesurfer.min.js
+    ├── assets/
+    │   ├── image-1.jpg
+    │   ├── image-2.jpg
+    │   ├── image-3.jpg
+    │   ├── image-4.jpg
+    │   ├── image-5.jpg
+    │   ├── image-6.jpg
+    │   ├── image-7.jpg
+    │   ├── sample-1.mp3
+    │   ├── sample-2.mp3
+    │   ├── sample-3.mp3
+    │   ├── sample-4.mp3
+    │   ├── sample-5.mp3
+    │   ├── sample-6.mp3
+    │   └── sample-7.mp3
+    └── optional/
+        └── ambience/
+            ├── Birds-2.mp3
+            ├── Birds.mp3
+            ├── Campfire.mp3
+            ├── Crickets.mp3
+            ├── Kids.mp3
+            ├── Light-Rain.mp3
+            └── Rain.mp3
